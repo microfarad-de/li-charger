@@ -27,8 +27,8 @@
 #define VOLT_MAX       4180000 // 4.15 Volt - Maximum allowable battery voltage in uV
 #define VOLT_MIN       2600000 // 2.60 Volt - Minimum allowable battery voltage in uV
 #define VOLT_WINDOW      10000 // 0.01 Volt - Do not regulate when within +/- this window in uV
-#define UPDATE_INTERVAL    100 // Interval for updating the power output in ms 
-#define IIR_FILTER_TAPS      8 // IIR fiter taps for smoothing the ADC output
+#define UPDATE_INTERVAL     50 // Interval for updating the power output in ms 
+#define IIR_FILTER_TAPS      4 // IIR fiter taps for smoothing the ADC output
 
 // Code snippets
 #define EEPROM_READ() eepromRead (0x0, (uint8_t*)&Nvm, sizeof (Nvm));
@@ -47,7 +47,7 @@ struct {
   int32_t v1;     // Voltage at the battery '+' terminal (MOSFET drain) in uV
   int32_t v2;     // Voltage at the battery '-' terminal (shunt) in uV
   int32_t i;      // Current
-  uint8_t dutyCycle;
+  int16_t dutyCycle;
 } G;
 
 
@@ -140,14 +140,18 @@ void loop (void) {
         vBatt = G.v1 - G.v2;
 
         // Abort if voltage out of bounds
-        if (vBatt > ((int32_t)VOLT_MAX + 10*(int32_t)VOLT_WINDOW)) state = STATE_ERROR_E;
+        //if (vBatt > ((int32_t)VOLT_MAX + 10*(int32_t)VOLT_WINDOW)) state = STATE_ERROR_E;
         //if (vBatt < VOLT_MIN)                 state = STATE_ERROR_E;
 
         // Regulate voltage
-        if      (vBatt > (int32_t)VOLT_MAX + (int32_t)VOLT_WINDOW) G.dutyCycle--;
-        else if (vBatt < (int32_t)VOLT_MAX - (int32_t)VOLT_WINDOW) G.dutyCycle++;
+        if (vBatt > (int32_t)VOLT_MAX + (int32_t)VOLT_WINDOW) {
+          if (G.dutyCycle > 0) G.dutyCycle--;
+        }
+        else if (vBatt < (int32_t)VOLT_MAX - (int32_t)VOLT_WINDOW) {
+          if (G.dutyCycle < 255) G.dutyCycle++;
+        }
 
-        analogWrite (MOSFET_PIN, G.dutyCycle);  
+        analogWrite (MOSFET_PIN, (int8_t)G.dutyCycle);  
       }
       
       break;
