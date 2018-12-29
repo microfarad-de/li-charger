@@ -208,6 +208,7 @@ void CliClass::showHelp(void)
   
   xprintf("  help (h)   : ");
   textPrintBlock("Show this help screen", TEXT_LINE_SIZE, HELP_INDENT);
+  xputs("");
 }
 
 
