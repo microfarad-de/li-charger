@@ -76,7 +76,7 @@ void setup (void) {
   Cli.newCmd ("p", "set PWM: 0..255", cmdPwm);
   Cli.newCmd ("v1cal", "calibrate V1", v1Calibrate);
   Cli.newCmd ("v2cal", "calibrate V2", v2Calibrate);
-  Cli.newCmd ("ical", "calibrate V2", iCalibrate);
+  Cli.newCmd ("ical", "calibrate I", iCalibrate);
   Cli.newCmd ("c", "show calibration", showCalibration);
   Cli.newCmd (".", "show results", cmdResult);
   
