@@ -31,7 +31,7 @@
 #define VOLT_MIN            5200000 // 5.20 V - Minimum allowed battery voltage in uV
 #define VOLT_WINDOW           20000 // 0.02 V - Do not regulate when within +/- this window in uV
 #define CURR_CALIBRATION_P      100 // Determines number of digits of the current calibration value (precision)
-#define CURR_MAX             500000 // 0.50 A - Maximum allowed current in uA
+#define CURR_MAX            1000000 // 1.00 A - Maximum allowed current in uA
 #define CURR_WINDOW           10000 // 0.01 A - Do not regulate when within +/- this window in uA
 #define CURR_FULL             50000 // 0.05 A - The battery is considered full if this current in uA is not exceeded during TIMEOUT_FULL
 #define TIMEOUT_FULL          60000 // Time duration in ms during which CURR_FULL shall not be exceeded in order to assume that battery is full
@@ -159,8 +159,8 @@ void loop (void) {
         updateTs = ts;
 
         // Abort if voltage out of bounds
-        if (G.vBatt > ((int32_t)VOLT_MAX + 10*(int32_t)VOLT_WINDOW)) state = STATE_ERROR_E;
-        if (G.vBatt < (int32_t)VOLT_MIN)                             state = STATE_ERROR_E;
+        if (G.vBatt > ((int32_t)VOLT_MAX + 4*(int32_t)VOLT_WINDOW)) state = STATE_ERROR_E;
+        if (G.vBatt < (int32_t)VOLT_MIN)                            state = STATE_ERROR_E;
 
         // Regulate voltage and current
         if ( ( G.vBatt > (int32_t)VOLT_MAX + (int32_t)VOLT_WINDOW ) ||
@@ -188,6 +188,7 @@ void loop (void) {
     // Battery full
     case STATE_FULL_E:
       Led.blink (-1, 100, 1900);
+      G.dutyCycle = 0;
       analogWrite (MOSFET_PIN, 0);
       digitalWrite (ADC_DIVIDE_PIN, LOW);
       Cli.xputs ("Battery full\n");
@@ -202,6 +203,7 @@ void loop (void) {
     // Error
     case STATE_ERROR_E:
       Led.blink (-1, 200, 200);
+      G.dutyCycle = 0;
       analogWrite (MOSFET_PIN, 0);
       digitalWrite (ADC_DIVIDE_PIN, LOW);
       Cli.xputs ("ERROR\n");
