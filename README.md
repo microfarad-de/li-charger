@@ -1,6 +1,6 @@
 # Lithium-Ion Battery Charger
 
-This repository contains an Arduino implementation for a basic Lithium-Ion battery charger. 
+This repository contains an Arduino implementation for a basic Lithium-Ion battery charger. The code has been implemented and tested on an ATmega328P based _Arduino Pro Mini_ clone board.
 
 Unless stated otherwise inside the source file headers, please feel free to use and distribute this code under the GNU General Public License v3.0.
 
