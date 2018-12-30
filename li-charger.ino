@@ -133,7 +133,7 @@ void loop (void) {
     /**********************************/
     // Initializing
     case STATE_INIT_E:
-      Led.blink (-1, 400, 1600);
+      Led.blink (-1, 500, 1500);
       digitalWrite (ADC_ENABLE_PIN, HIGH);
       G.dutyCycle = 0;
       Cli.xputs ("Waiting for battery\n");
