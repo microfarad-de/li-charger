@@ -88,7 +88,6 @@ void setup (void) {
   Cli.newCmd ("ical", "calibrate I (shunt R in mΩ as arg)", iCalibrate);
   Cli.newCmd ("c", "show calibration", showCalibration);
   Cli.newCmd (".", "show voltage & current", cmdResult);
-  
   Cli.showHelp ();
 
   // Initialize the ADC
@@ -98,8 +97,10 @@ void setup (void) {
   pinMode (MOSFET_PIN, OUTPUT);
   pinMode (ADC_ENABLE_PIN, OUTPUT);
 
+  // Initialize LED
   Led.initialize (LED_PIN);
 
+  // Read calibration data from EEPROM
   EEPROM_READ()
 
 }
