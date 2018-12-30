@@ -1,4 +1,4 @@
-# Lithium-Ion battery charger
+# Lithium-Ion Battery Charger
 
 This repository contains an Arduino implementation for a basic Lithium-Ion battery charger. 
 
