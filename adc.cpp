@@ -28,7 +28,7 @@ void AdcClass::start (AdcPin_t adcPin) {
   
   pin = (uint8_t)adcPin;
   ADMUX  = reference | (pin & 0x07);      // select reference and input port
-  bitSet (ADCSRA, ADSC);                     // start a conversion 
+  bitSet (ADCSRA, ADSC);                  // start a conversion 
   working = true;
 }
 

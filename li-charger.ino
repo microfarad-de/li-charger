@@ -5,8 +5,8 @@
  * Version: 0.1.0
  * Date:    13.12.2018
  */
-#define VERSION_MAJOR 0  // major version
-#define VERSION_MINOR 1  // minor version
+#define VERSION_MAJOR 1  // major version
+#define VERSION_MINOR 0  // minor version
 #define VERSION_MAINT 0  // maintenance version
 
 #include <Arduino.h>
@@ -22,18 +22,18 @@
 
 #define MOSFET_PIN      9      // PWM pin controlling the gate of the power MOSFET
 #define LED_PIN        13      // LED pin
-#define ADC_DIVIDE_PIN  8      // Pin for connecting the ADC voltage divider to the negative rail
+#define ADC_ENABLE_PIN  8      // Controls the BJT transistor bridge for connecting the ADC voltage divider to battery +
                                // ADC voltage divider must be disconnected to avoid battery drain
 
-#define VOLT_CALIBRATION_V1 8400000 // 8.40 V - Calibrate V1 against this voltage in uV
-#define VOLT_CALIBRATION_V2 1000000 // 1.00 V - Calibrate V2 against thsi voltage in uV
-#define VOLT_MAX            8380000 // 8.38 V - Maximum allowed battery voltage in uV
-#define VOLT_MIN            5200000 // 5.20 V - Minimum allowed battery voltage in uV
-#define VOLT_WINDOW           20000 // 0.02 V - Do not regulate when within +/- this window in uV
+#define VOLT_CALIBRATION_V1 8400000 // 8.40 V - Calibrate V1 against this voltage in µV
+#define VOLT_CALIBRATION_V2 1000000 // 1.00 V - Calibrate V2 against this voltage in µV
+#define VOLT_MAX            8380000 // 8.38 V - Maximum allowed battery voltage in µV
+#define VOLT_MIN            5200000 // 5.20 V - Minimum allowed battery voltage in µV
+#define VOLT_WINDOW           20000 // 0.02 V - Do not regulate voltage when within +/- this window in µV
 #define CURR_CALIBRATION_P      100 // Determines number of digits of the current calibration value (precision)
-#define CURR_MAX            1000000 // 1.00 A - Maximum allowed current in uA
-#define CURR_WINDOW           10000 // 0.01 A - Do not regulate when within +/- this window in uA
-#define CURR_FULL             50000 // 0.05 A - The battery is considered full if this current in uA is not exceeded during TIMEOUT_FULL
+#define CURR_MAX            1000000 // 1.00 A - Maximum allowed current in µA
+#define CURR_WINDOW           10000 // 0.01 A - Do not regulate current when within +/- this window in µA
+#define CURR_FULL             50000 // 0.05 A - The battery is considered full if this current in µA is not exceeded during TIMEOUT_FULL
 #define TIMEOUT_FULL          60000 // Time duration in ms during which CURR_FULL shall not be exceeded in order to assume that battery is full
 #define UPDATE_INTERVAL          50 // Interval for updating the power output in ms 
 #define IIR_FILTER_TAPS           2 // IIR fiter taps for smoothing the ADC output
@@ -44,19 +44,19 @@
 #define EEPROM_WRITE() eepromWrite (0x0, (uint8_t*)&Nvm, sizeof (Nvm));
 
 
-LedClass Led;    // LED object
+// LED object
+LedClass Led;
 
 /*
  * Global variables
  */
 struct {
-  uint8_t analogPin[NUM_APINS] = { VOLTAGE_APIN, CURRENT_APIN };  // Analog pins as an array
-  int16_t v1Raw;  // Raw ADC value of V1
-  int16_t v2Raw;  // Raw ADC value of V2
-  int32_t v1;     // V1 - Voltage at the battery '+' terminal (MOSFET drain) in uV
-  int32_t v2;     // V2 - Voltage at the battery '-' terminal (shunt) in uV
-  int32_t vBatt;  // Vbatt - Battery voltage = V1 - V2
-  int32_t i;      // I - Current
+  int32_t v1;        // V1 - Voltage at the battery '+' terminal (MOSFET drain) in µV
+  int32_t v2;        // V2 - Voltage at the battery '-' terminal (shunt) in µV
+  int32_t vBatt;     // Vbatt - Battery voltage = V1 - V2
+  int32_t i;         // I - Current
+  int16_t v1Raw;     // Raw ADC value of V1
+  int16_t v2Raw;     // Raw ADC value of V2
   int16_t dutyCycle; // PWM duty cycle
 } G;
 
@@ -87,7 +87,7 @@ void setup (void) {
   Cli.newCmd ("v2cal", "calibrate V2", v2Calibrate);
   Cli.newCmd ("ical", "calibrate I (shunt R in mΩ as arg)", iCalibrate);
   Cli.newCmd ("c", "show calibration", showCalibration);
-  Cli.newCmd (".", "show results", cmdResult);
+  Cli.newCmd (".", "show voltage & current", cmdResult);
   
   Cli.showHelp ();
 
@@ -96,7 +96,7 @@ void setup (void) {
 
   // Initialize digital pins
   pinMode (MOSFET_PIN, OUTPUT);
-  pinMode (ADC_DIVIDE_PIN, OUTPUT);
+  pinMode (ADC_ENABLE_PIN, OUTPUT);
 
   Led.initialize (LED_PIN);
 
@@ -133,7 +133,7 @@ void loop (void) {
     // Initializing
     case STATE_INIT_E:
       Led.blink (-1, 400, 1600);
-      digitalWrite (ADC_DIVIDE_PIN, HIGH);
+      digitalWrite (ADC_ENABLE_PIN, HIGH);
       G.dutyCycle = 0;
       Cli.xputs ("Waiting for battery\n");
       state = STATE_INIT; 
@@ -143,6 +143,7 @@ void loop (void) {
       if ( G.vBatt > (int32_t)VOLT_MIN && G.vBatt < (int32_t)VOLT_MAX ) {
         state = STATE_CHARGE_E;
       }
+      
       break;
 
 
@@ -190,7 +191,7 @@ void loop (void) {
       Led.blink (-1, 100, 1900);
       G.dutyCycle = 0;
       analogWrite (MOSFET_PIN, 0);
-      digitalWrite (ADC_DIVIDE_PIN, LOW);
+      digitalWrite (ADC_ENABLE_PIN, LOW);
       Cli.xputs ("Battery full\n");
       state = STATE_FULL;
       
@@ -205,7 +206,7 @@ void loop (void) {
       Led.blink (-1, 200, 200);
       G.dutyCycle = 0;
       analogWrite (MOSFET_PIN, 0);
-      digitalWrite (ADC_DIVIDE_PIN, LOW);
+      digitalWrite (ADC_ENABLE_PIN, LOW);
       Cli.xputs ("ERROR\n");
       state = STATE_ERROR;
       
@@ -235,11 +236,13 @@ void adcRead (void) {
   // Read the ADC channels
   result = ADConv.readAll ();
 
-  // Smoothen results
+  
   if (result == 0) {
+    // Smoothen results
     G.v1Raw = v1Filter.process (ADConv.result[0], IIR_FILTER_TAPS);
     G.v2Raw = v2Filter.process (ADConv.result[1], IIR_FILTER_TAPS);
 
+    // Calculate voltage and current
     G.v1 = (int32_t)G.v1Raw * Nvm.v1Calibration;
     G.v2 = (int32_t)G.v2Raw * Nvm.v2Calibration;
     G.vBatt = G.v1 - G.v2;
@@ -256,7 +259,7 @@ void adcRead (void) {
  */
 int cmdResult (int argc, char **argv) {
   int i;
-  Cli.xprintf ("Duty Cyc = %d\n", G.dutyCycle);
+  Cli.xprintf ("Duty C.  = %d\n", G.dutyCycle);
   Cli.xprintf ("V1 (raw) = %d\n", G.v1Raw);
   Cli.xprintf ("V2 (raw) = %d\n", G.v2Raw);
   Cli.xprintf ("V1       = %ld\n", G.v1);
@@ -269,7 +272,7 @@ int cmdResult (int argc, char **argv) {
 
 
 /*
- * Show calibration values
+ * CLI command for showing calibration values
  */
 int showCalibration (int argc, char **argv) {
   Cli.xprintf("V1 cal. = %ld\n", Nvm.v1Calibration);
@@ -281,7 +284,7 @@ int showCalibration (int argc, char **argv) {
 
 
 /*
- * Calibrate V1
+ * CLI command for calibrating V1
  */
 int v1Calibrate (int argc, char **argv) {
   Nvm.v1Calibration = (int32_t)VOLT_CALIBRATION_V1 / (int32_t)G.v1Raw;
@@ -293,7 +296,7 @@ int v1Calibrate (int argc, char **argv) {
 
 
 /*
- * Calibrate V2
+ * CLI command for calibrating V2
  */
 int v2Calibrate (int argc, char **argv) {
   Nvm.v2Calibration = (int32_t)VOLT_CALIBRATION_V2 / (int32_t)G.v2Raw;
@@ -305,8 +308,8 @@ int v2Calibrate (int argc, char **argv) {
 
 
 /*
- * Calibrate I
- * argv{1} = shunt resistance in milliohm
+ * CLI command for calibrating I
+ * argv[1]: shunt resistance in milliohm
  */
 int iCalibrate (int argc, char **argv) {
   int32_t r = atoi (argv[1]);
