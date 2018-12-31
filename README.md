@@ -4,12 +4,16 @@ This repository contains an Arduino implementation for a basic Lithium-Ion batte
 
 Unless stated otherwise inside the source file headers, please feel free to use and distribute this code under the GNU General Public License v3.0.
 
+*Disclaimer: overcharging, short-circuiting or otherwise abusing Lithium-Ion batteries may result in a fire and/or a violent explosion. I neither take any responsiblity nor can be held liable for any damage caused to human beings and things due to the improper handling of lithium-Ion batteries. Please implement this project at your own risk!*
+
 ## Theory of Operation
 
 The charger does not provide any fancy balancing or battery management features. 
 It simply acts as a stabilized current source as long as the battery does not reach 4.2 Volts per cell. 
 Once the voltage limit has been reached, the charger would switch to the stabilized voltage mode where it would gradually reduce 
 the current in order not to exceed the maximum voltage limit.
+
+In order to avoid damaging the Lithium-Ion cells due to the charger misbehaving, it is highly recommended to additionally protect the cells by means of an off-the-shelf Battery Management System (BMS) board.
 
 The charger ensures that a battery is connected checking its voltage. 
 The charging procedure can only be initiated if a voltage between 3.6 and 4.2 Volts per cell are present at the battery terminals.
