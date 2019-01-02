@@ -2,14 +2,14 @@
 
 This repository contains an Arduino implementation for a basic Lithium-Ion battery charger. The code has been implemented and tested on an _Arduino Pro Mini_ clone board based on the _ATmega328P_ microcontroller.
 
-Unless stated otherwise inside the source file headers, please feel free to use and distribute this code under the *GNU General Public License v3.0*.
+Unless stated otherwise in the source file headers, please feel free to use and distribute this code under the *GNU General Public License v3.0*.
 
 *Disclaimer: overcharging, short-circuiting or otherwise abusing Lithium-Ion batteries may result in a fire and/or a violent explosion. I neither take any responsiblity nor can be held liable for any damage caused to human beings and things due to the improper handling of lithium-Ion batteries. Please implement this project at your own risk!*
 
 ## Theory of Operation
 
 The charger does not provide any fancy balancing or battery management features. 
-It simply acts as a stabilized current source as long as the battery does not reach 4.2 Volts per cell. 
+Charging is accomplished with the Constant Current Constant Voltage (CC-CV) scheme. The charger acts as a stabilized source as long as the battery does not reach 4.2 Volts per cell. 
 Once the voltage limit has been reached, the charger would switch to the stabilized voltage mode where it would gradually reduce 
 the current as not to exceed the maximum voltage limit.
 
