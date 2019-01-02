@@ -1,9 +1,28 @@
-/*
+/* 
  * Command-line interpreter
  * 
- * Karim Hraibi - 2018
+ * This source file is part of the Lithium-Ion Battery Charger Arduino firmware
+ * found under http://www.github.com/microfarad-de/li-charger
+ * 
+ * Please visit:
+ *   http://www.microfarad.de
+ *   http://www.github.com/microfarad-de
+ * 
+ * Copyright (C) 2019 Karim Hraibi (khraibi at gmail.com)
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
  */
+ 
 #include <Arduino.h>
 //#include <stdio.h>
 //#include <stdlib.h>
@@ -15,7 +34,7 @@
 #define SERIAL_BAUD     115200    // Serial baud rate
 #define PRINTF_BUF_SIZE 64        // printf buffer size 
 #define TEXT_LINE_SIZE  70        // Sets the maximum text line size
-#define HELP_INDENT     15        // Help text block indentation
+#define INDENT          15        // Help text block indentation
 
 
 
@@ -144,24 +163,23 @@ int CliClass::getCmd(void)
 void CliClass::showHelp(void)
 {
   int i, j;
-  int duplicateFlag = 0;
-  Cli_Cmd_s *cmd[CLI_NUM_CMD];
+  bool duplicate = false;
+  CliCmd_s *cmd[CLI_NUM_CMD];
   int numCmds = 0;
   int len = 0;
 
   if (!initialized) return EXIT_FAILURE;
 
-  // Assign valid commands to on array of temporary pointers
   for (i = 0; i < this->numCmds && (i < CLI_NUM_CMD); i++) {
 
       // Search for duplicate commands
-      duplicateFlag = 0;
+      duplicate = false;
       for (j = 0; j < i; j++) {
           if (this->cmd[i].fct == this->cmd[j].fct)
-              duplicateFlag = 1;
+              duplicate = true;
       }
       // Do not show the same command twice
-      if (!duplicateFlag) {
+      if (!duplicate) {
           cmd[numCmds] = &this->cmd[i];
           numCmds++;
       }
@@ -179,10 +197,10 @@ void CliClass::showHelp(void)
     len = strlen(cmd[i]->str) + 2;
 
     // Search for alternative commands and display them between parantheses
-    duplicateFlag = 0;
+    duplicate = false;
     for (j = 0; (j < this->numCmds) && (j < CLI_NUM_CMD); j++) {
       if ((this->cmd[j].fct == cmd[i]->fct) && (strcmp(this->cmd[j].str, cmd[i]->str) != 0)) {
-        if (duplicateFlag == 0) {
+        if (!duplicate) {
           xprintf(" (");
           len += 2;
         }
@@ -192,40 +210,40 @@ void CliClass::showHelp(void)
         }
         xprintf(this->cmd[j].str);
         len += strlen(this->cmd[j].str);
-        duplicateFlag = 1;
+        duplicate = true;
       }
     }
     
-    if (duplicateFlag == 1) {
+    if (duplicate) {
       xprintf(")");
       len += 1;
     }
     
-    textPadding(' ', HELP_INDENT - len - 2);
+    textPadding(' ', INDENT - len - 2);
     xprintf(": ");
-    textPrintBlock(cmd[i]->doc, TEXT_LINE_SIZE, HELP_INDENT);
+    textPrintBlock(cmd[i]->doc, TEXT_LINE_SIZE, INDENT);
   }
   
   xprintf("  help (h)   : ");
-  textPrintBlock("Show this help screen", TEXT_LINE_SIZE, HELP_INDENT);
+  textPrintBlock("this help screen", TEXT_LINE_SIZE, INDENT);
   xputs("");
 }
 
 
-void CliClass::sortCmds(int numCmds, Cli_Cmd_s **cmd)
+void CliClass::sortCmds(int numCmds, CliCmd_s **cmd)
 {
-  int sortedFlag = 0;
+  bool sorted = false;
   int i;
-  Cli_Cmd_s *tempCmd;
+  CliCmd_s *temp;
 
-  while (!sortedFlag) {
-    sortedFlag = 1;
+  while (!sorted) {
+    sorted = true;
     for (i = 0; i < numCmds - 1; i++) {
       if (strcmp(cmd[i]->str, cmd[i + 1]->str) > 0) {
-        sortedFlag = 0;
-        tempCmd = cmd[i];
+        sorted = false;
+        temp = cmd[i];
         cmd[i] = cmd[i + 1];
-        cmd[i + 1] = tempCmd;
+        cmd[i + 1] = temp;
       }
     }
   }
@@ -235,18 +253,18 @@ void CliClass::sortCmds(int numCmds, Cli_Cmd_s **cmd)
 void CliClass::textPrintBlock(const char *text, int lineSize, int offset)
 {
   const char *c = text;
-  int cnt, i;
+  int count, i;
 
   while (*c != 0) {
     // remove leading spaces
     while (*c == ' ' || *c == '\t') c++;
 
-    cnt = 0;
+    count = 0;
     // write a line
-    while (cnt < (lineSize - offset) && *c != '\r' && *c != '\n' && *c != 0) {
+    while (count < (lineSize - offset) && *c != '\r' && *c != '\n' && *c != 0) {
       xputchar(*c);
       c++;
-      cnt++;
+      count++;
     }
 
     // finish the last word of a line

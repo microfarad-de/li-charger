@@ -1,8 +1,27 @@
-/*
+/* 
  * Command-line interpreter
  * 
- * Karim Hraibi - 2018
+ * This source file is part of the Lithium-Ion Battery Charger Arduino firmware
+ * found under http://www.github.com/microfarad-de/li-charger
+ * 
+ * Please visit:
+ *   http://www.microfarad.de
+ *   http://www.github.com/microfarad-de
+ * 
+ * Copyright (C) 2019 Karim Hraibi (khraibi at gmail.com)
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>. 
  */
 
 #ifndef __Cli_H_
@@ -11,7 +30,7 @@
 
 #define CLI_NUM_CMD    10     // Number of cli commands
 #define CLI_NUM_ARG    5      // Number of cli arguments
-#define CLI_ARG_LEN    8      // Maximum argument length
+#define CLI_ARG_LEN    10     // Maximum argument length
 
 
 
@@ -23,7 +42,7 @@ typedef struct
   const char *str;          // Command name
   const char *doc;          // Command description
   int (*fct)(int, char **); // Pointer to command function
-} Cli_Cmd_s;
+} CliCmd_s;
 
 
 /* 
@@ -76,11 +95,11 @@ class CliClass
     
     void textPadding (char c, int size);                              // Insert repeated sequence of characters
     void textPrintBlock (const char *text, int lineSize, int offset); // Print a formatted block of text
-    void sortCmds (int numCmds, Cli_Cmd_s **cmd);                     // Sort commands in alphabetical order
+    void sortCmds (int numCmds, CliCmd_s **cmd);                     // Sort commands in alphabetical order
  
     char argBuf[CLI_NUM_ARG][CLI_ARG_LEN]; // Array of charactars for commands and arguments
     char *argv[CLI_NUM_ARG];               // Array of pointers to argument strings
-    Cli_Cmd_s cmd[CLI_NUM_CMD];            // Array of commands
+    CliCmd_s cmd[CLI_NUM_CMD];            // Array of commands
     int numCmds;                           // Total number of commands
     bool initialized = false;              // Initialization status
 
