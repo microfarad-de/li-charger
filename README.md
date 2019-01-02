@@ -20,7 +20,7 @@ The charging procedure can only be initiated if a voltage between 3.6 and 4.2 Vo
 
 The charger detects a battery open or short circuit by detecting any sudden voltage drops or surges. 
 
-The charging process is terminated if the current drops below 50 milliamps and stays there for more than 1 minute.
+The charging process is terminated if the current drops below a certain threshold (percentage of the battery capacity) and stays there for a pre-determined amount of time.
 
 ## LED Indicator
 
