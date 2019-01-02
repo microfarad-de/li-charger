@@ -261,8 +261,8 @@ void loop (void) {
       if (G.vBatt > (int32_t)V_MIN * Nvm.numCells && G.vBatt < (int32_t)V_SURGE * Nvm.numCells) errorTs = ts;
       if (ts - errorTs > TIMEOUT_ERROR) {
         cmdResult (0, NULL);
-        if (G.vBatt > (int32_t)V_SURGE              ) Cli.xprintf ("Overvolt ");
-        if (G.vBatt < (int32_t)V_MIN * Nvm.numCells ) Cli.xprintf ("Undervolt ");
+        if (G.vBatt > (int32_t)V_SURGE * Nvm.numCells) Cli.xprintf ("Overvolt ");
+        if (G.vBatt < (int32_t)V_MIN * Nvm.numCells  ) Cli.xprintf ("Undervolt ");
         state = STATE_ERROR_E;
       }
 
