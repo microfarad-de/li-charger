@@ -47,8 +47,7 @@
 #define CURRENT_APIN ADC_PIN1  // Analog pin for current measurement
 #define MOSFET_PIN      9      // PWM pin controlling the gate of the power MOSFET
 #define LED_PIN        13      // LED pin
-#define ADC_ENABLE_PIN  8      // Controls the BJT transistor bridge for connecting the ADC voltage divider to battery +
-                               // ADC voltage divider must be disconnected to avoid battery drain
+
 
 /*
  * Configuration parameters
@@ -169,8 +168,6 @@ void setup (void) {
 
   // Initialize digital pins
   pinMode (MOSFET_PIN, OUTPUT);
-  pinMode (ADC_ENABLE_PIN, OUTPUT);
-  digitalWrite (ADC_ENABLE_PIN, HIGH);
 
   // Initialize LED
   Led.initialize (LED_PIN);
