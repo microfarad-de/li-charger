@@ -57,14 +57,14 @@
 #define V_SURGE        4250000 // 4.25 V - maximum allowed surge voltage threshold per cell in µV
 #define V_MAX          4190000 // 4.19 V - Maximum allowed battery voltage per cell in µV
 #define V_MIN          2500000 // 2.50 V - Minimum allowed battery voltage per cell in µV
-#define V_WINDOW         10000 // 0.01 V - Do not regulate voltage when within +/- this window (per cell) in µV
+#define V_WINDOW          5000 // 0.005 V - Do not regulate voltage when within +/- this window (per cell) in µV
 #define V_TICKLE_START 4100000 // 4.10 V - Tickle charge threshold voltage in µV
 #define V_TICKLE_MAX   4150000 // 4.15 V - Tickle charge maximum voltage in µV
 #define I_CALIBRATION_P    128 // Determines number of digits of the current calibration value (precision)
 #define I_WINDOW         20000 // 0.02 A - Do not regulate current when within +/- this window in µA
 #define TIMEOUT_CHARGE    2000 // Time duration in ms during which vBatt shall be between V_MIN and V_MAX before starting to charge
 #define TIMEOUT_ERROR      150 // Time duration in ms during which vBatt shall be auto of bounds in order to trigger an error condition
-#define TIMEOUT_FULL     10000 // Time duration in ms during which iFull shall not be exceeded in order to assume that battery is full
+#define TIMEOUT_FULL     30000 // Time duration in ms during which iFull shall not be exceeded in order to assume that battery is full
 #define TIMEOUT_TICKLE   10000 // Time duration in ms during which vBatt shall be smaller than V_TICKLE_MAX before starting a tickle charge
 #define TIMEOUT_ERR_RST   5000 // Time duration in ms during which vBatt shall be 0 before going back from STATE_ERROR to STATE_INIT
 #define TIMEOUT_FULL_RST  2000 // Time duration in ms during which vBatt shall be 0 before going back from STATE_FULL to STATE_INIT
