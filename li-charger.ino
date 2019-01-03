@@ -58,8 +58,8 @@
 #define V_MAX          4190000 // 4.19 V - Maximum allowed battery voltage per cell in µV
 #define V_MIN          2500000 // 2.50 V - Minimum allowed battery voltage per cell in µV
 #define V_WINDOW         10000 // 0.01 V - Do not regulate voltage when within +/- this window (per cell) in µV
-#define V_TICKLE_START 4050000 // 4.05 V - Tickle charge threshold voltage in µV
-#define V_TICKLE_MAX   4100000 // 4.10 V - Tickle charge maximum voltage in µV
+#define V_TICKLE_START 4100000 // 4.10 V - Tickle charge threshold voltage in µV
+#define V_TICKLE_MAX   4150000 // 4.15 V - Tickle charge maximum voltage in µV
 #define I_CALIBRATION_P    128 // Determines number of digits of the current calibration value (precision)
 #define I_WINDOW         20000 // 0.02 A - Do not regulate current when within +/- this window in µA
 #define TIMEOUT_CHARGE    2000 // Time duration in ms during which vBatt shall be between V_MIN and V_MAX before starting to charge
@@ -69,7 +69,6 @@
 #define TIMEOUT_ERR_RST   5000 // Time duration in ms during which vBatt shall be 0 before going back from STATE_ERROR to STATE_INIT
 #define TIMEOUT_FULL_RST  2000 // Time duration in ms during which vBatt shall be 0 before going back from STATE_FULL to STATE_INIT
 #define UPDATE_INTERVAL     50 // Interval in ms for updating the power output
-#define IIR_FILTER_TAPS      1 // IIR filter taps for smoothing the ADC output
 #define ADC_AVG_SAMPLES     16 // Number of ADC samples to be averaged
 
 
@@ -250,7 +249,8 @@ void loop (void) {
       fullTs = ts;
       G.startTs = ts;
       tickTs = ts;
-      Cli.xputs ("Charging\n");
+      if (tickleCharge) Cli.xputs ("Tickle charging\n");
+      else              Cli.xputs ("Charging\n");
       state = STATE_CHARGE;
     case STATE_CHARGE:
       // Run the regulation routine at the preset interval
@@ -351,7 +351,6 @@ void loop (void) {
  */
 void adcRead (void) {
   int8_t result;
-  static IirFilterClass v1Filter, v2Filter;
 
   // Read the ADC channels
   result = ADConv.readAll ();
@@ -359,8 +358,8 @@ void adcRead (void) {
   
   if (result) {
     // Smoothen results
-    G.v1Raw = v1Filter.process (ADConv.result[0], IIR_FILTER_TAPS);
-    G.v2Raw = v2Filter.process (ADConv.result[1], IIR_FILTER_TAPS);
+    G.v1Raw = ADConv.result[0];
+    G.v2Raw = ADConv.result[1];
 
     // Calculate voltage and current
     G.v1 = (int32_t)G.v1Raw * Nvm.v1Calibration;
