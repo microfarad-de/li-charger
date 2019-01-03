@@ -28,9 +28,10 @@
 #define __Cli_H_
 
 
-#define CLI_NUM_CMD    10     // Number of cli commands
-#define CLI_NUM_ARG    5      // Number of cli arguments
-#define CLI_ARG_LEN    10     // Maximum argument length
+#define CLI_NUM_CMD         10   // Number of cli commands
+#define CLI_NUM_ARG          2   // Number of cli arguments
+#define CLI_ARG_LEN          8   // Maximum argument length
+#define CLI_PRINTF_BUF_SIZE 50   // Size of the printf buffer
 
 
 
@@ -95,13 +96,14 @@ class CliClass
     
     void textPadding (char c, int size);                              // Insert repeated sequence of characters
     void textPrintBlock (const char *text, int lineSize, int offset); // Print a formatted block of text
-    void sortCmds (int numCmds, CliCmd_s **cmd);                     // Sort commands in alphabetical order
+    void sortCmds (int numCmds, CliCmd_s **cmd);                      // Sort commands in alphabetical order
  
     char argBuf[CLI_NUM_ARG][CLI_ARG_LEN]; // Array of charactars for commands and arguments
     char *argv[CLI_NUM_ARG];               // Array of pointers to argument strings
-    CliCmd_s cmd[CLI_NUM_CMD];            // Array of commands
+    CliCmd_s cmd[CLI_NUM_CMD];             // Array of commands
     int numCmds;                           // Total number of commands
     bool initialized = false;              // Initialization status
+    char printfBuf[CLI_PRINTF_BUF_SIZE];   // Temporary buffer used by xprintf();
 
     // The following parameters are used by getCmd ()
     enum {START, DISCARD_LEADING_SPACES, CAPTURE_STRING, DISCARD_TRAILING_SPACES, EVALUATE} state = START; // State

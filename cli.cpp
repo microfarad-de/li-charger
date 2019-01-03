@@ -32,7 +32,6 @@
 
 
 #define SERIAL_BAUD     115200    // Serial baud rate
-#define PRINTF_BUF_SIZE 64        // printf buffer size 
 #define TEXT_LINE_SIZE  70        // Sets the maximum text line size
 #define INDENT          15        // Help text block indentation
 
@@ -61,7 +60,7 @@ int CliClass::newCmd(const char *name, const char *description, int(*function)(i
   if (!initialized) return EXIT_FAILURE;
   
   if (this->numCmds >= CLI_NUM_CMD) {
-    xprintf("[ERROR] too many commands\n");
+    xprintf("OVF!\n");
     return EXIT_FAILURE;
   }
 
@@ -149,7 +148,7 @@ int CliClass::getCmd(void)
           return rv;
         }
       }        
-      xprintf("Invalid command '%s'\n", argv[0]);
+      xprintf("Unknown '%s'\n", argv[0]);
       break;
 
     default:       
@@ -188,7 +187,7 @@ void CliClass::showHelp(void)
   // Sort commands in alphabetical order
   sortCmds(numCmds, cmd);
 
-  xprintf("Available commands:\n");
+  xprintf("Commands:\n");
 
   // Display commands
   for (i = 0; (i < numCmds) && (i < CLI_NUM_CMD); i++) {
@@ -225,7 +224,7 @@ void CliClass::showHelp(void)
   }
   
   xprintf("  help (h)   : ");
-  textPrintBlock("this help screen", TEXT_LINE_SIZE, INDENT);
+  textPrintBlock("help screen", TEXT_LINE_SIZE, INDENT);
   xputs("");
 }
 
@@ -300,13 +299,12 @@ void CliClass::textPadding(char c, int size)
 
 
 void CliClass::xprintf(const char *fmt, ... ){
-  char buf[PRINTF_BUF_SIZE]; // Resulting string limited to 128 chars
   va_list args;
   if (!initialized) return;
   va_start (args, fmt );
-  vsnprintf(buf, PRINTF_BUF_SIZE, fmt, args);
+  vsnprintf(printfBuf, CLI_PRINTF_BUF_SIZE, fmt, args);
   va_end (args);
-  Serial.print(buf);
+  Serial.print(printfBuf);
 }
 
 

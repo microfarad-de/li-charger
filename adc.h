@@ -83,11 +83,12 @@ class AdcClass {
     /* 
      *  Initialize the ADC
      *  Parameters:
-     *    prescaler : ADC prescaler value
-     *    reference : ADC reference voltage
-     *    numPins   : number of analog pins to sample
+     *    prescaler  : ADC prescaler value
+     *    reference  : ADC reference voltage
+     *    numPins    : number of analog pins to sample
+     *    avgSamples : number of samples to be averaged
      */
-    void initialize (AdcPrescaler_t prescaler = ADC_PRESCALER_128, AdcReference_t reference = ADC_DEFAULT, uint8_t numPins = 0);
+    void initialize (AdcPrescaler_t prescaler = ADC_PRESCALER_128, AdcReference_t reference = ADC_DEFAULT, uint8_t numPins = 0, uint8_t avgSamples = 1);
 
     /*
      * Start ADC conversion
@@ -106,13 +107,13 @@ class AdcClass {
 
     /*
      * Read all preset ADC inputs
-     * When called it will store the result of the next ADC conversion 
-     * and store the result into the result array.
+     * When called repeatedly it will cycle through the pre-configuraed ADC chanels defined by numPins,
+     * get the ADC results, average them as defined in avgSamples and store them in the result array.
      * Return value:
-     *   -1     : no result available yet
-     *   0..8   : index of the current result array (ADC pin index)
+     *  false : no result available yet
+     *  true  : all the channels have been read and averaged
      */
-    int8_t readAll (void);
+    bool readAll (void);
 
     /*
      * ADC result can be read from this array
@@ -125,7 +126,8 @@ class AdcClass {
     AdcReference_t reference;
     uint8_t numPins = 0;
     uint8_t currentPin = 0;
-  
+    uint8_t avgSamples = 1;
+    uint8_t avgCount = 0;
 };
 
 

@@ -33,10 +33,11 @@
 AdcClass ADConv;
 
 
-void AdcClass::initialize (AdcPrescaler_t prescaler, AdcReference_t reference, uint8_t numPins) {
+void AdcClass::initialize (AdcPrescaler_t prescaler, AdcReference_t reference, uint8_t numPins, uint8_t avgSamples) {
   this->reference = reference;
   assert (numPins < ADC_NUM_PINS);
   this->numPins = numPins;
+  this->avgSamples = avgSamples;
   ADCSRA =  _BV (ADEN);   // turn ADC on
   ADCSRA |= prescaler ;
 }
@@ -69,9 +70,8 @@ int16_t AdcClass::readVal (void) {
 }
 
 
-int8_t AdcClass::readAll (void) {
+bool AdcClass::readAll (void) {
   int16_t adcVal;
-  uint8_t pin = currentPin;
 
   // Start a new ADC measurement
   start ((AdcPin_t)currentPin);
@@ -81,12 +81,18 @@ int8_t AdcClass::readAll (void) {
 
   // ADC finished
   if (adcVal >= 0) {
-    result[currentPin] = adcVal;
+    if (avgCount == 0) result[currentPin] = 0;
+    result[currentPin] += adcVal;
+    if (avgCount == avgSamples - 1) result[currentPin] = result[currentPin] / avgSamples;
     currentPin++;
-    if (currentPin >= numPins) currentPin = 0; 
-    return pin;
+    if (currentPin >= numPins) {
+      currentPin = 0;
+      avgCount++;
+      if (avgCount >= avgSamples) {
+        avgCount = 0;
+        return true;
+      }
+    }
   }
-  else {
-    return -1;
-  }   
+  return false;  
 }
