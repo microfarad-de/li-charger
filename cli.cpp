@@ -138,7 +138,7 @@ int CliClass::getCmd(void)
 
     case EVALUATE:
       state = START;
-      if (strcmp(argv[0], "help") == 0 || strcmp(argv[0], "h") == 0) {
+      if (strcmp(argv[0], "h") == 0) {
         showHelp();
         return EXIT_SUCCESS;
       }
@@ -223,7 +223,9 @@ void CliClass::showHelp(void)
     textPrintBlock(cmd[i]->doc, TEXT_LINE_SIZE, INDENT);
   }
   
-  xprintf("  help (h)   : ");
+  xprintf("  h");
+  textPadding(' ', INDENT - 3 - 2);
+  xprintf(": ");
   textPrintBlock("help screen", TEXT_LINE_SIZE, INDENT);
   xputs("");
 }
