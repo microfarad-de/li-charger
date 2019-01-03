@@ -118,7 +118,7 @@ class AdcClass {
     /*
      * ADC result can be read from this array
      */
-    int16_t result[ADC_NUM_PINS];
+    uint32_t result[ADC_NUM_PINS];
 
   private:  
 

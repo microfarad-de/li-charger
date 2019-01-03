@@ -89,19 +89,19 @@ LedClass Led;
  * Global variables
  */
 struct {
-  int32_t v1;           // V1 - Voltage at the battery '+' terminal (MOSFET drain) in µV
-  int32_t v2;           // V2 - Voltage at the battery '-' terminal (shunt) in µV
-  int32_t vBatt;        // Vbatt - Battery voltage = V1 - V2 in µV
-  int32_t vMax;         // Maximum allowed voltage per cell during charging in µV
-  int32_t i;            // I - Current in µA
-  int16_t v1Raw;        // Raw ADC value of V1
-  int16_t v2Raw;        // Raw ADC value of V2
-  int16_t dutyCycle;    // PWM duty cycle
-  int32_t tMax;         // Maximum allowed charge time duration in s
-  int32_t iCalibration; // Calibration value for calculating i
-  uint32_t c = 0;       // Total charged capacity in mAs
-  uint32_t t = 0;       // Charge duration
-  uint32_t startTs;     // Timestamp of charging begin in ms
+  uint32_t v1;           // V1 - Voltage at the battery '+' terminal (MOSFET drain) in µV
+  uint32_t v2;           // V2 - Voltage at the battery '-' terminal (shunt) in µV
+  uint32_t vBatt;        // Vbatt - Battery voltage = V1 - V2 in µV
+  uint32_t vMax;         // Maximum allowed voltage per cell during charging in µV
+  uint32_t i;            // I - Current in µA
+  uint32_t v1Raw;        // Raw ADC value of V1
+  uint32_t v2Raw;        // Raw ADC value of V2
+  uint16_t dutyCycle;    // PWM duty cycle
+  uint32_t tMax;         // Maximum allowed charge time duration in s
+  uint32_t iCalibration; // Calibration value for calculating i
+  uint32_t c = 0;        // Total charged capacity in mAs
+  uint32_t t = 0;        // Charge duration
+  uint32_t startTs;      // Timestamp of charging begin in ms
 
 } G;
 
@@ -110,13 +110,13 @@ struct {
  * Parameters stored in EEPROM (non-volatile memory)
  */
 struct {
-  int32_t v1Calibration;  // Calibration value for calculating v1
-  int32_t v2Calibration;  // Calibration value for calculating v2
-  int32_t iFull;          // End of charge current in µA
-  int32_t numCells;       // Number of Lithium-Ion cells
-  int32_t iMax;           // Maximum charging current in µA
-  int32_t rShunt;         // Shunt resistor value in mΩ
-  int32_t cMax;           // Battery capacity in mAh
+  uint32_t v1Calibration;  // Calibration value for calculating v1
+  uint32_t v2Calibration;  // Calibration value for calculating v2
+  uint32_t iFull;          // End of charge current in µA
+  uint32_t numCells;       // Number of Lithium-Ion cells
+  uint32_t iMax;           // Maximum charging current in µA
+  uint32_t rShunt;         // Shunt resistor value in mΩ
+  uint32_t cMax;           // Battery capacity in mAh
 } Nvm;
 
 
@@ -350,7 +350,7 @@ void loop (void) {
  * Read the ADC channels
  */
 void adcRead (void) {
-  int8_t result;
+  bool result;
 
   // Read the ADC channels
   result = ADConv.readAll ();
@@ -399,14 +399,14 @@ int showRtParams (int argc, char **argv) {
   uint32_t sec = G.t - (hour * 3600) - (min * 60);
   Cli.xprintf ("T      = %luh %lum %lus\n", hour, min, sec);
   Cli.xprintf ("C      = %lu mAh\n", G.c / 3600);
-  Cli.xprintf ("V_batt = %ld mV\n", G.vBatt / 1000);
-  Cli.xprintf ("V_max  = %ld mV\n", (G.vMax * Nvm.numCells) / 1000);
-  Cli.xprintf ("I      = %ld mA\n", G.i / 1000);
-  Cli.xprintf ("PWM    = %d\n", G.dutyCycle);
-  Cli.xprintf ("V1_raw = %d\n", G.v1Raw);
-  Cli.xprintf ("V2_raw = %d\n", G.v2Raw);
-  Cli.xprintf ("V1     = %ld mV\n", G.v1 / 1000);
-  Cli.xprintf ("V2     = %ld mV\n", G.v2 / 1000);
+  Cli.xprintf ("V_batt = %lu mV\n", G.vBatt / 1000);
+  Cli.xprintf ("V_max  = %lu mV\n", (G.vMax * Nvm.numCells) / 1000);
+  Cli.xprintf ("I      = %lu mA\n", G.i / 1000);
+  Cli.xprintf ("PWM    = %u\n", G.dutyCycle);
+  Cli.xprintf ("V1_raw = %lu\n", G.v1Raw);
+  Cli.xprintf ("V2_raw = %lu\n", G.v2Raw);
+  Cli.xprintf ("V1     = %lu mV\n", G.v1 / 1000);
+  Cli.xprintf ("V2     = %lu mV\n", G.v2 / 1000);
   Cli.xputs("");
   return 0;
 }
@@ -419,17 +419,17 @@ int showRtParams (int argc, char **argv) {
  * derived from other EEPROM values.
  */
 int showCalibration (int argc, char **argv) {
-  Cli.xprintf("N_cells = %ld\n", Nvm.numCells);
-  Cli.xprintf("C_max   = %ld mAh\n", Nvm.cMax);
-  Cli.xprintf("I_max   = %ld mA\n", Nvm.iMax / 1000);
-  Cli.xprintf("I_full  = %ld mA\n", Nvm.iFull / 1000);
-  Cli.xprintf("T_max   = %ld min\n", G.tMax / 60);
-  Cli.xprintf("R_shunt = %ld mΩ\n", Nvm.rShunt);
-  Cli.xprintf("V1_cal  = %ld\n", Nvm.v1Calibration);
-  Cli.xprintf("V2_cal  = %ld\n", Nvm.v2Calibration);
-  Cli.xprintf("I_cal   = %ld\n", G.iCalibration);
-  Cli.xprintf("V1_ref  = %ld mV\n", (V1_REF * Nvm.numCells) / 1000);
-  Cli.xprintf("V2_ref  = %ld mV\n", V2_REF / 1000);
+  Cli.xprintf("N_cells = %lu\n", Nvm.numCells);
+  Cli.xprintf("C_max   = %lu mAh\n", Nvm.cMax);
+  Cli.xprintf("I_max   = %lu mA\n", Nvm.iMax / 1000);
+  Cli.xprintf("I_full  = %lu mA\n", Nvm.iFull / 1000);
+  Cli.xprintf("T_max   = %lu min\n", G.tMax / 60);
+  Cli.xprintf("R_shunt = %lu mΩ\n", Nvm.rShunt);
+  Cli.xprintf("V1_cal  = %lu\n", Nvm.v1Calibration);
+  Cli.xprintf("V2_cal  = %lu\n", Nvm.v2Calibration);
+  Cli.xprintf("I_cal   = %lu\n", G.iCalibration);
+  Cli.xprintf("V1_ref  = %lu mV\n", (V1_REF * Nvm.numCells) / 1000);
+  Cli.xprintf("V2_ref  = %lu mV\n", V2_REF / 1000);
   Cli.xputs("");
   return 0;
 }
@@ -455,7 +455,7 @@ int numCellsSet (int argc, char **argv) {
 int iMaxSet (int argc, char **argv) {
   Nvm.iMax = atol (argv[1]) * 1000;
   EEPROM_WRITE()
-  Cli.xprintf("I_max = %ld mA\n", Nvm.iMax / 1000);
+  Cli.xprintf("I_max = %lu mA\n", Nvm.iMax / 1000);
   Cli.xputs("");
   return 0;
 }
@@ -468,7 +468,7 @@ int iMaxSet (int argc, char **argv) {
 int iFullSet (int argc, char **argv) {
   Nvm.iFull = atol (argv[1]) * 1000;
   EEPROM_WRITE()
-  Cli.xprintf("I_full = %ld mA\n", Nvm.iFull / 1000);
+  Cli.xprintf("I_full = %lu mA\n", Nvm.iFull / 1000);
   Cli.xputs("");
   return 0;
 }
@@ -481,7 +481,7 @@ int iFullSet (int argc, char **argv) {
 int cMaxSet (int argc, char **argv) {
   Nvm.cMax = atol (argv[1]);
   EEPROM_WRITE()
-  Cli.xprintf("C_max = %ld mAh\n", Nvm.cMax);
+  Cli.xprintf("C_max = %lu mAh\n", Nvm.cMax);
   Cli.xputs("");
   return 0;
 }
@@ -494,8 +494,8 @@ int cMaxSet (int argc, char **argv) {
 int rShuntSet (int argc, char **argv) {
   Nvm.rShunt = atol (argv[1]);
   EEPROM_WRITE()
-  Cli.xprintf("R_shunt = %ld mΩ\n", Nvm.rShunt);
-  Cli.xprintf("I_cal   = %ld\n", G.iCalibration);
+  Cli.xprintf("R_shunt = %lu mΩ\n", Nvm.rShunt);
+  Cli.xprintf("I_cal   = %lu\n", G.iCalibration);
   Cli.xputs("");
   return 0;
 }
@@ -507,7 +507,7 @@ int rShuntSet (int argc, char **argv) {
 int v1Calibrate (int argc, char **argv) {
   Nvm.v1Calibration = ((int32_t)V1_REF * Nvm.numCells) / (int32_t)G.v1Raw;
   EEPROM_WRITE()
-  Cli.xprintf("V1_cal = %ld\n", Nvm.v1Calibration);
+  Cli.xprintf("V1_cal = %lu\n", Nvm.v1Calibration);
   Cli.xputs("");
   return 0;
 }
@@ -519,7 +519,7 @@ int v1Calibrate (int argc, char **argv) {
 int v2Calibrate (int argc, char **argv) {
   Nvm.v2Calibration = (int32_t)V2_REF / (int32_t)G.v2Raw;
   EEPROM_WRITE()
-  Cli.xprintf("V2_cal = %ld\n", Nvm.v2Calibration);
+  Cli.xprintf("V2_cal = %lu\n", Nvm.v2Calibration);
   Cli.xputs("");
   return 0;
 }
