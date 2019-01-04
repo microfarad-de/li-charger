@@ -84,11 +84,17 @@
  */
 LedClass Led;
 
+/*
+ * State machine states
+ */
+enum State_t { STATE_INIT_E, STATE_INIT, STATE_CHARGE_E, STATE_CHARGE, STATE_FULL_E, STATE_FULL, 
+                STATE_ERROR_E, STATE_ERROR, STATE_CALIBRATE_E, STATE_CALIBRATE };
 
 /*
  * Global variables
  */
 struct {
+  State_t state = STATE_INIT_E; // Current state machine state
   uint32_t v1;           // V1 - Voltage at the battery '+' terminal (MOSFET drain) in µV
   uint32_t v2;           // V2 - Voltage at the battery '-' terminal (shunt) in µV
   uint32_t vBatt;        // Vbatt - Battery voltage = V1 - V2 in µV
@@ -101,8 +107,6 @@ struct {
   uint32_t iCalibration; // Calibration value for calculating i
   uint32_t c = 0;        // Total charged capacity in mAs
   uint32_t t = 0;        // Charge duration
-  uint32_t startTs;      // Timestamp of charging begin in ms
-
 } G;
 
 
@@ -162,10 +166,9 @@ void setup (void) {
   Cli.newCmd ("imax", "set I_max in mA", iMaxSet);
   Cli.newCmd ("ifull", "set I_full in mA", iFullSet);
   Cli.newCmd ("rshunt", "set R_shunt in mΩ", rShuntSet);
-  Cli.newCmd ("v1cal", "calibrate V1", v1Calibrate);
-  Cli.newCmd ("v2cal", "calibrate V2", v2Calibrate);
   Cli.newCmd ("c", "calibration params", showCalibration);
   Cli.newCmd (".", "real-time params", showRtParams);
+  Cli.newCmd ("cal", "calibrate V1 & V2 [+|++|-|--|v1|v2]", calibrate);
   Cli.showHelp ();
 
   // Initialize the ADC
@@ -190,8 +193,6 @@ void setup (void) {
  * Arduino main loop
  */
 void loop (void) {
-  static enum { STATE_INIT_E, STATE_INIT, STATE_CHARGE_E, STATE_CHARGE, 
-      STATE_FULL_E, STATE_FULL, STATE_ERROR_E, STATE_ERROR } state = STATE_INIT_E;
   static uint32_t tickTs = 0;
   static uint32_t updateTs = 0;
   static uint32_t chargeTs = 0;
@@ -219,7 +220,7 @@ void loop (void) {
 
 
   // Main state machine
-  switch (state) {
+  switch (G.state) {
   
     /********************************************************************/
     // Initialization State
@@ -229,15 +230,16 @@ void loop (void) {
       G.vMax = (int32_t)V_MAX; // Set vMax to full charge level
       chargeTs = ts;
       G.dutyCycle = 0;
+      analogWrite (MOSFET_PIN, 0);
       Cli.xputs ("Waiting for battery\n");
-      state = STATE_INIT; 
+      G.state = STATE_INIT; 
     case STATE_INIT:
       // Start charging if vBatt stays within bounds during TIMEOUT_CHARGE
       if ( G.vBatt < (int32_t)V_MIN * Nvm.numCells || G.vBatt > (int32_t)V_MAX * Nvm.numCells ) chargeTs = ts;
       if (ts - chargeTs > TIMEOUT_CHARGE) {
         G.c = 0;
         G.t = 0;
-        state = STATE_CHARGE_E;
+        G.state = STATE_CHARGE_E;
       }
       break;
 
@@ -247,17 +249,16 @@ void loop (void) {
       Led.turnOn ();
       errorTs = ts;
       fullTs = ts;
-      G.startTs = ts;
       tickTs = ts;
       if (tickleCharge) Cli.xputs ("Tickle charging\n");
       else              Cli.xputs ("Charging\n");
-      state = STATE_CHARGE;
+      G.state = STATE_CHARGE;
     case STATE_CHARGE:
       // Run the regulation routine at the preset interval
       if (ts - updateTs > UPDATE_INTERVAL) {
         updateTs = ts;
 
-        // Regulate voltage and current
+        // Regulate voltage and current with the CC-CV algorithm
         if ( ( G.vBatt > ( G.vMax + (int32_t)V_WINDOW ) * Nvm.numCells ) ||
              ( G.i     > Nvm.iMax + (int32_t)I_WINDOW ) ) {
           if (G.dutyCycle > 0) G.dutyCycle--;
@@ -277,12 +278,12 @@ void loop (void) {
         showRtParams (0, NULL);
         if (G.vBatt > (int32_t)V_SURGE * Nvm.numCells) Cli.xprintf ("Overvolt ");
         if (G.vBatt < (int32_t)V_MIN * Nvm.numCells  ) Cli.xprintf ("Undervolt ");
-        state = STATE_ERROR_E;
+        G.state = STATE_ERROR_E;
       }
 
       // Report battery full if iFull has not been exceeded during TIMEOUT_FULL
       if (G.i > Nvm.iFull) fullTs = ts;
-      if (ts - fullTs > TIMEOUT_FULL) Cli.xputs("I_full reached"), state = STATE_FULL_E; 
+      if (ts - fullTs > TIMEOUT_FULL) Cli.xputs("I_full reached"), G.state = STATE_FULL_E; 
 
       // Calculate charged capacity by integrating i over time
       if (ts - tickTs >= 1000 && !tickleCharge) {
@@ -292,10 +293,10 @@ void loop (void) {
       }
 
       // Maximum charge capacity is reached (nominal capacity + 10%, 3960 = 3600 * 1.1)
-      if (G.c > (uint32_t)Nvm.cMax * 3960 && !tickleCharge) Cli.xputs("C_max reached"), state = STATE_FULL_E;
+      if (G.c > (uint32_t)Nvm.cMax * 3960 && !tickleCharge) Cli.xputs("C_max reached"), G.state = STATE_FULL_E;
 
       // Maximum charge duration reached
-      if (G.t > G.tMax) showRtParams (0, NULL), Cli.xprintf ("Timeout "), state = STATE_ERROR_E;  
+      if (G.t > G.tMax) showRtParams (0, NULL), Cli.xprintf ("Timeout "), G.state = STATE_ERROR_E;  
       break;
 
     /********************************************************************/
@@ -309,15 +310,15 @@ void loop (void) {
       G.dutyCycle = 0;
       analogWrite (MOSFET_PIN, 0);
       Cli.xputs ("Battery full\n");
-      state = STATE_FULL;     
+      G.state = STATE_FULL;     
     case STATE_FULL:
       // Start a tickle charging cycle if V_TICKLE_START has not been exceeded during TIMEOUT_TICKLE
       if (G.vBatt > (int32_t)V_TICKLE_START * Nvm.numCells) tickleTs = ts;
-      if (ts - tickleTs > TIMEOUT_TICKLE) state = STATE_CHARGE_E;
+      if (ts - tickleTs > TIMEOUT_TICKLE) G.state = STATE_CHARGE_E;
 
       // Go to STATE_INIT if vBatt stayed 0 during TIMEOUT_RESET
       if (G.vBatt > 0) resetTs = ts;
-      if (ts - resetTs > TIMEOUT_FULL_RST) state = STATE_INIT_E;
+      if (ts - resetTs > TIMEOUT_FULL_RST) G.state = STATE_INIT_E;
       break;
         
     /********************************************************************/
@@ -328,13 +329,26 @@ void loop (void) {
       G.dutyCycle = 0;
       analogWrite (MOSFET_PIN, 0);
       Cli.xputs ("ERROR\n");
-      state = STATE_ERROR;   
+      G.state = STATE_ERROR;   
     case STATE_ERROR:
       // Go to STATE_INIT if vBatt stayed 0 during TIMEOUT_RESET
       if (G.vBatt > 0) resetTs = ts;
-      if (ts - resetTs > TIMEOUT_ERR_RST) state = STATE_INIT_E;
+      if (ts - resetTs > TIMEOUT_ERR_RST) G.state = STATE_INIT_E;
       break;
- 
+
+      
+    /********************************************************************/
+    // Calibration State
+    case STATE_CALIBRATE_E:
+      Led.blink (-1, 100, 100);
+      G.dutyCycle = 0;
+      analogWrite (MOSFET_PIN, 0);
+      Cli.xputs ("Calibration mode\n");
+      G.state = STATE_CALIBRATE;   
+    case STATE_CALIBRATE:
+      // Do nothing and wait for a CLI command
+      break;
+      
     /********************************************************************/
     default:
       break;
@@ -357,7 +371,7 @@ void adcRead (void) {
 
   
   if (result) {
-    // Smoothen results
+    // Get the ADC results
     G.v1Raw = ADConv.result[0];
     G.v2Raw = ADConv.result[1];
 
@@ -428,8 +442,6 @@ int showCalibration (int argc, char **argv) {
   Cli.xprintf("V1_cal  = %lu\n", Nvm.v1Calibration);
   Cli.xprintf("V2_cal  = %lu\n", Nvm.v2Calibration);
   Cli.xprintf("I_cal   = %lu\n", G.iCalibration);
-  Cli.xprintf("V1_ref  = %lu mV\n", (V1_REF * Nvm.numCells) / 1000);
-  Cli.xprintf("V2_ref  = %lu mV\n", V2_REF / 1000);
   Cli.xputs("");
   return 0;
 }
@@ -502,24 +514,60 @@ int rShuntSet (int argc, char **argv) {
 
 
 /*
- * CLI command for calibrating V1
+ * Calibrate V1
  */
-int v1Calibrate (int argc, char **argv) {
+void calibrateV1 (void) {
   Nvm.v1Calibration = ((int32_t)V1_REF * Nvm.numCells) / (int32_t)G.v1Raw;
   EEPROM_WRITE()
   Cli.xprintf("V1_cal = %lu\n", Nvm.v1Calibration);
   Cli.xputs("");
-  return 0;
 }
 
 
 /*
- * CLI command for calibrating V2
+ * Calibrate V2
  */
-int v2Calibrate (int argc, char **argv) {
+void calibrateV2 (void) {
   Nvm.v2Calibration = (int32_t)V2_REF / (int32_t)G.v2Raw;
   EEPROM_WRITE()
   Cli.xprintf("V2_cal = %lu\n", Nvm.v2Calibration);
   Cli.xputs("");
+}
+
+
+/*
+ * Print the PWM duty cycle
+ */
+void updateDutyCycle (void) {
+   Cli.xprintf ("PWM = %u\n", G.dutyCycle);
+   Cli.xputs("");
+   analogWrite (MOSFET_PIN, G.dutyCycle);
+}
+
+/*
+ * CLI command for calibrating V1 and V2
+ * argv[1]:
+ *   +  : increase PWM duty cycle by 1 step
+ *   ++ : increase PWM duty cycle by 10 steps
+ *   -  : decrease PWM duty cycle by 1 step
+ *   -- : decrease PWM duty cycle by 10 steps
+ *   v1 : calibrate V1
+ *   v2 : calibrate V2
+ */
+int calibrate (int argc, char **argv) {
+  if (G.state == STATE_CALIBRATE) {
+    if      (strcmp(argv[1], "+" ) == 0 && G.dutyCycle < 255) G.dutyCycle +=  1, updateDutyCycle();
+    else if (strcmp(argv[1], "++") == 0 && G.dutyCycle < 245) G.dutyCycle += 10, updateDutyCycle();
+    else if (strcmp(argv[1], "-" ) == 0 && G.dutyCycle > 0)   G.dutyCycle -=  1, updateDutyCycle();
+    else if (strcmp(argv[1], "--") == 0 && G.dutyCycle > 10)  G.dutyCycle -= 10, updateDutyCycle();
+    else if (strcmp(argv[1], "v1") == 0)                                         calibrateV1 ();
+    else if (strcmp(argv[1], "v2") == 0)                                         calibrateV2 ();
+    else if (strcmp(argv[1], ""  ) == 0) G.state = STATE_INIT_E;
+  }
+  else {
+    G.state = STATE_CALIBRATE_E;        
+    Cli.xprintf("V1_ref  = %lu mV\n", (V1_REF * Nvm.numCells) / 1000);
+    Cli.xprintf("V2_ref  = %lu mV\n\n", V2_REF / 1000);
+  }
   return 0;
 }
