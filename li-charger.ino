@@ -64,7 +64,7 @@
 #define I_WINDOW         20000 // 0.02 A - Do not regulate current when within +/- this window in µA
 #define TIMEOUT_CHARGE    2000 // Time duration in ms during which vBatt shall be between V_MIN and V_MAX before starting to charge
 #define TIMEOUT_ERROR      150 // Time duration in ms during which vBatt shall be auto of bounds in order to trigger an error condition
-#define TIMEOUT_FULL     30000 // Time duration in ms during which iFull shall not be exceeded in order to assume that battery is full
+#define TIMEOUT_FULL     20000 // Time duration in ms during which iFull shall not be exceeded in order to assume that battery is full
 #define TIMEOUT_TICKLE   10000 // Time duration in ms during which vBatt shall be smaller than V_TICKLE_MAX before starting a tickle charge
 #define TIMEOUT_ERR_RST   5000 // Time duration in ms during which vBatt shall be 0 before going back from STATE_ERROR to STATE_INIT
 #define TIMEOUT_FULL_RST  2000 // Time duration in ms during which vBatt shall be 0 before going back from STATE_FULL to STATE_INIT
@@ -168,7 +168,8 @@ void setup (void) {
   Cli.newCmd ("rshunt", "set R_shunt in mΩ", rShuntSet);
   Cli.newCmd ("c", "calibration params", showCalibration);
   Cli.newCmd (".", "real-time params", showRtParams);
-  Cli.newCmd ("cal", "calibrate V1 & V2 [+|++|-|--|v1|v2]", calibrate);
+  Cli.newCmd ("cal", "calibrate V1 & V2 (cal [v1|v2])", calibrate);
+  
   Cli.showHelp ();
 
   // Initialize the ADC
@@ -413,9 +414,9 @@ int showRtParams (int argc, char **argv) {
   uint32_t sec = G.t - (hour * 3600) - (min * 60);
   Cli.xprintf ("T      = %luh %lum %lus\n", hour, min, sec);
   Cli.xprintf ("C      = %lu mAh\n", G.c / 3600);
+  Cli.xprintf ("I      = %lu mA\n", G.i / 1000);
   Cli.xprintf ("V_batt = %lu mV\n", G.vBatt / 1000);
   Cli.xprintf ("V_max  = %lu mV\n", (G.vMax * Nvm.numCells) / 1000);
-  Cli.xprintf ("I      = %lu mA\n", G.i / 1000);
   Cli.xprintf ("PWM    = %u\n", G.dutyCycle);
   Cli.xprintf ("V1_raw = %lu\n", G.v1Raw);
   Cli.xprintf ("V2_raw = %lu\n", G.v2Raw);
@@ -535,14 +536,6 @@ void calibrateV2 (void) {
 }
 
 
-/*
- * Print the PWM duty cycle
- */
-void updateDutyCycle (void) {
-   Cli.xprintf ("PWM = %u\n", G.dutyCycle);
-   Cli.xputs("");
-   analogWrite (MOSFET_PIN, G.dutyCycle);
-}
 
 /*
  * CLI command for calibrating V1 and V2
@@ -556,13 +549,9 @@ void updateDutyCycle (void) {
  */
 int calibrate (int argc, char **argv) {
   if (G.state == STATE_CALIBRATE) {
-    if      (strcmp(argv[1], "+" ) == 0 && G.dutyCycle < 255) G.dutyCycle +=  1, updateDutyCycle();
-    else if (strcmp(argv[1], "++") == 0 && G.dutyCycle < 245) G.dutyCycle += 10, updateDutyCycle();
-    else if (strcmp(argv[1], "-" ) == 0 && G.dutyCycle > 0)   G.dutyCycle -=  1, updateDutyCycle();
-    else if (strcmp(argv[1], "--") == 0 && G.dutyCycle > 10)  G.dutyCycle -= 10, updateDutyCycle();
-    else if (strcmp(argv[1], "v1") == 0)                                         calibrateV1 ();
-    else if (strcmp(argv[1], "v2") == 0)                                         calibrateV2 ();
-    else if (strcmp(argv[1], ""  ) == 0) G.state = STATE_INIT_E;
+    if      (strcmp(argv[1], "v1") == 0) calibrateV1 ();
+    else if (strcmp(argv[1], "v2") == 0) calibrateV2 ();
+    else    G.state = STATE_INIT_E;
   }
   else {
     G.state = STATE_CALIBRATE_E;        
