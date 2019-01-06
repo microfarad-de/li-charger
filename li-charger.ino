@@ -58,14 +58,14 @@
 #define V_MAX          4190000 // 4.19 V - Maximum allowed battery voltage per cell in µV
 #define V_MIN          2500000 // 2.50 V - Minimum allowed battery voltage per cell in µV
 #define V_WINDOW          5000 // 0.005 V - Do not regulate voltage when within +/- this window (per cell) in µV
-#define V_TICKLE_START 4100000 // 4.10 V - Tickle charge threshold voltage in µV
-#define V_TICKLE_MAX   4150000 // 4.15 V - Tickle charge maximum voltage in µV
+#define V_TRICKLE_START 4100000 // 4.10 V - Trickle charge threshold voltage in µV
+#define V_TRICKLE_MAX   4150000 // 4.15 V - Trickle charge maximum voltage in µV
 #define I_CALIBRATION_P    128 // Determines number of digits of the current calibration value (precision)
 #define I_WINDOW         20000 // 0.02 A - Do not regulate current when within +/- this window in µA
 #define TIMEOUT_CHARGE    2000 // Time duration in ms during which vBatt shall be between V_MIN and V_MAX before starting to charge
 #define TIMEOUT_ERROR      150 // Time duration in ms during which vBatt shall be auto of bounds in order to trigger an error condition
 #define TIMEOUT_FULL     20000 // Time duration in ms during which iFull shall not be exceeded in order to assume that battery is full
-#define TIMEOUT_TICKLE   10000 // Time duration in ms during which vBatt shall be smaller than V_TICKLE_MAX before starting a tickle charge
+#define TIMEOUT_TRICKLE   10000 // Time duration in ms during which vBatt shall be smaller than V_TRICKLE_MAX before starting a trickle charge
 #define TIMEOUT_ERR_RST   5000 // Time duration in ms during which vBatt shall be 0 before going back from STATE_ERROR to STATE_INIT
 #define TIMEOUT_FULL_RST  2000 // Time duration in ms during which vBatt shall be 0 before going back from STATE_FULL to STATE_INIT
 #define UPDATE_INTERVAL     50 // Interval in ms for updating the power output
@@ -199,9 +199,9 @@ void loop (void) {
   static uint32_t chargeTs = 0;
   static uint32_t errorTs = 0;
   static uint32_t fullTs = 0;
-  static uint32_t tickleTs = 0;
+  static uint32_t trickleTs = 0;
   static uint32_t resetTs = 0;
-  static bool tickleCharge = false;
+  static bool trickleCharge = false;
   uint32_t ts = millis ();
 
   // Reset the watchdog timer
@@ -227,7 +227,7 @@ void loop (void) {
     // Initialization State
     case STATE_INIT_E:
       Led.blink (-1, 500, 1500);
-      tickleCharge = false; 
+      trickleCharge = false; 
       G.vMax = (int32_t)V_MAX; // Set vMax to full charge level
       chargeTs = ts;
       G.dutyCycle = 0;
@@ -251,7 +251,7 @@ void loop (void) {
       errorTs = ts;
       fullTs = ts;
       tickTs = ts;
-      if (tickleCharge) Cli.xputs ("Tickle charging\n");
+      if (trickleCharge) Cli.xputs ("Trickle charging\n");
       else              Cli.xputs ("Charging\n");
       G.state = STATE_CHARGE;
     case STATE_CHARGE:
@@ -287,14 +287,14 @@ void loop (void) {
       if (ts - fullTs > TIMEOUT_FULL) Cli.xputs("I_full reached"), G.state = STATE_FULL_E; 
 
       // Calculate charged capacity by integrating i over time
-      if (ts - tickTs >= 1000 && !tickleCharge) {
+      if (ts - tickTs >= 1000 && !trickleCharge) {
         tickTs = ts;
         G.t++;
         G.c += (G.i / 1000);
       }
 
       // Maximum charge capacity is reached (nominal capacity + 10%, 3960 = 3600 * 1.1)
-      if (G.c > (uint32_t)Nvm.cMax * 3960 && !tickleCharge) Cli.xputs("C_max reached"), G.state = STATE_FULL_E;
+      if (G.c > (uint32_t)Nvm.cMax * 3960 && !trickleCharge) Cli.xputs("C_max reached"), G.state = STATE_FULL_E;
 
       // Maximum charge duration reached
       if (G.t > G.tMax) showRtParams (0, NULL), Cli.xprintf ("Timeout "), G.state = STATE_ERROR_E;  
@@ -304,18 +304,18 @@ void loop (void) {
     // Battery Full State
     case STATE_FULL_E:
       Led.blink (-1, 100, 1900);
-      tickleCharge = true;
-      G.vMax = (int32_t)V_TICKLE_MAX; // Reduce vMax to tickle charge level
-      tickleTs = ts;
+      trickleCharge = true;
+      G.vMax = (int32_t)V_TRICKLE_MAX; // Reduce vMax to trickle charge level
+      trickleTs = ts;
       resetTs = ts;
       G.dutyCycle = 0;
       analogWrite (MOSFET_PIN, 0);
       Cli.xputs ("Battery full\n");
       G.state = STATE_FULL;     
     case STATE_FULL:
-      // Start a tickle charging cycle if V_TICKLE_START has not been exceeded during TIMEOUT_TICKLE
-      if (G.vBatt > (int32_t)V_TICKLE_START * Nvm.numCells) tickleTs = ts;
-      if (ts - tickleTs > TIMEOUT_TICKLE) G.state = STATE_CHARGE_E;
+      // Start a trickle charging cycle if V_TRICKLE_START has not been exceeded during TIMEOUT_TRICKLE
+      if (G.vBatt > (int32_t)V_TRICKLE_START * Nvm.numCells) trickleTs = ts;
+      if (ts - trickleTs > TIMEOUT_TRICKLE) G.state = STATE_CHARGE_E;
 
       // Go to STATE_INIT if vBatt stayed 0 during TIMEOUT_RESET
       if (G.vBatt > 0) resetTs = ts;
