@@ -330,7 +330,8 @@ void loop (void) {
       if ( (G.i > Nvm.iFull) && (G.i < G.iMin + (uint32_t)I_DELTA) ) fullTs = ts;
       if (ts - fullTs > TIMEOUT_FULL) {
         showRtParams (0, NULL);
-        Cli.xputs("I_full reached"); 
+        if (G.i < Nvm.iFull)                  Cli.xputs("I_full reached"); 
+        if (G.i > G.iMin + (uint32_t)I_DELTA) Cli.xputs("I_delta reached");
         G.state = STATE_FULL_E; 
       }
 
