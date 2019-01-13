@@ -62,10 +62,11 @@
 #define V_TRICKLE_MAX   4150000 // 4.15 V - Trickle charge maximum voltage in µV
 #define I_CALIBRATION_P    128 // Determines number of digits of the current calibration value (precision)
 #define I_WINDOW         20000 // 0.02 A - Do not regulate current when within +/- this window in µA
+#define I_DELTA          50000 // 0.05 A - current increase in µA to detect end of charge
 #define TIMEOUT_CHARGE    2000 // Time duration in ms during which vBatt shall be between V_MIN and V_MAX before starting to charge
 #define TIMEOUT_ERROR      150 // Time duration in ms during which i or vBatt shall be out of bounds in order to trigger an error condition
 #define TIMEOUT_FULL     20000 // Time duration in ms during which iFull shall not be exceeded in order to assume that battery is full
-#define TIMEOUT_TRICKLE   10000 // Time duration in ms during which vBatt shall be smaller than V_TRICKLE_MAX before starting a trickle charge
+#define TIMEOUT_TRICKLE  10000 // Time duration in ms during which vBatt shall be smaller than V_TRICKLE_MAX before starting a trickle charge
 #define TIMEOUT_ERR_RST   5000 // Time duration in ms during which vBatt shall be 0 before going back from STATE_ERROR to STATE_INIT
 #define TIMEOUT_FULL_RST  2000 // Time duration in ms during which vBatt shall be 0 before going back from STATE_FULL to STATE_INIT
 #define UPDATE_INTERVAL     50 // Interval in ms for updating the power output
@@ -96,6 +97,7 @@ struct {
   uint32_t vBatt;        // Vbatt - Battery voltage = V1 - V2 in µV
   uint32_t vMax;         // Maximum allowed voltage per cell during charging in µV
   uint32_t i;            // I - Current in µA
+  uint32_t iMin;         // I_min - historically minimum charge current
   uint32_t v1Raw;        // Raw ADC value of V1
   uint32_t v2Raw;        // Raw ADC value of V2
   uint16_t dutyCycle;    // PWM duty cycle
@@ -156,7 +158,7 @@ void nvmRead (void) {
 
   // Calculate and check CRC checksum
   crc = crcCalc ((uint8_t*)&Nvm, sizeof (Nvm) - 4);
-  //Cli.xprintf ("Crc = %lx\n\n", crc);
+  Cli.xprintf ("CRC = %lx\n\n", crc);
 
   if (crc != Nvm.crc) G.crcOk = false;
   else G.crcOk = true;
@@ -169,7 +171,7 @@ void nvmRead (void) {
 void nvmWrite (void) {
   nvmValidate (); 
   Nvm.crc = crcCalc ((uint8_t*)&Nvm, sizeof (Nvm) - 4);
-  //Cli.xprintf ("Crc = %lx\n\n", Nvm.crc);
+  Cli.xprintf ("CRC = %lx\n\n", Nvm.crc);
   eepromWrite (0x0, (uint8_t*)&Nvm, sizeof (Nvm));
 }
 
@@ -230,6 +232,7 @@ void loop (void) {
   static uint32_t fullTs = 0;
   static uint32_t trickleTs = 0;
   static uint32_t resetTs = 0;
+  static bool iMinCalc = false;
   static bool trickleCharge = false;
   uint32_t ts = millis ();
 
@@ -283,6 +286,8 @@ void loop (void) {
       errorTs = ts;
       fullTs = ts;
       tickTs = ts;
+      G.iMin = Nvm.iMax;
+      iMinCalc = false;
       if (trickleCharge) Cli.xputs ("Trickle charging\n");
       else              Cli.xputs ("Charging\n");
       G.state = STATE_CHARGE;
@@ -295,6 +300,7 @@ void loop (void) {
         if ( ( G.vBatt > ( G.vMax + (int32_t)V_WINDOW ) * Nvm.numCells ) ||
              ( G.i     > Nvm.iMax + (int32_t)I_WINDOW ) ) {
           if (G.dutyCycle > 0) G.dutyCycle--;
+          iMinCalc = true;
         }
         else if ( ( G.vBatt < ( G.vMax - (int32_t)V_WINDOW ) * Nvm.numCells ) &&
                   ( G.i     < Nvm.iMax - (int32_t)I_WINDOW ) ) {
@@ -317,13 +323,15 @@ void loop (void) {
         G.state = STATE_ERROR_E;
       }
 
+      // Calculate historically minimum charge current
+      if (iMinCalc && G.i < G.iMin) G.iMin = G.i;
 
       // Report battery full if iFull has not been exceeded during TIMEOUT_FULL
-      if (G.i > Nvm.iFull) fullTs = ts;
+      if ( (G.i > Nvm.iFull) && (G.i < G.iMin + (uint32_t)I_DELTA) ) fullTs = ts;
       if (ts - fullTs > TIMEOUT_FULL) Cli.xputs("I_full reached"), G.state = STATE_FULL_E; 
 
       // Calculate charged capacity by integrating i over time
-      if (ts - tickTs >= 1000 && !trickleCharge) {
+      if (ts - tickTs >= 1000 /* && !trickleCharge */) {
         tickTs += 1000;
         G.t++;
         G.c += (G.i / 1000);
@@ -451,6 +459,7 @@ int showRtParams (int argc, char **argv) {
   Cli.xprintf ("T      = %luh %lum %lus\n", hour, min, sec);
   Cli.xprintf ("C      = %lu mAh\n", G.c / 3600);
   Cli.xprintf ("I      = %lu mA\n", G.i / 1000);
+  Cli.xprintf ("I_min  = %lu mA\n", G.iMin / 1000);
   Cli.xprintf ("V_batt = %lu mV\n", G.vBatt / 1000);
   Cli.xprintf ("V_max  = %lu mV\n", (G.vMax * Nvm.numCells) / 1000);
   Cli.xprintf ("PWM    = %u\n", G.dutyCycle);
