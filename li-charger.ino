@@ -52,25 +52,25 @@
 /*
  * Configuration parameters
  */
-#define V1_REF         4200000 // 4.20 V - Calibrate V1 against this reference voltage per cell in µV
-#define V2_REF         1000000 // 1.00 V - Calibrate V2 against this reference voltage in µV
-#define V_SURGE        4250000 // 4.25 V - maximum allowed surge voltage threshold per cell in µV
-#define V_MAX          4190000 // 4.19 V - Maximum allowed battery voltage per cell in µV
-#define V_MIN          2500000 // 2.50 V - Minimum allowed battery voltage per cell in µV
-#define V_WINDOW          5000 // 0.005 V - Do not regulate voltage when within +/- this window (per cell) in µV
+#define V1_REF          4200000 // 4.20 V - Calibrate V1 against this reference voltage per cell in µV
+#define V2_REF          1000000 // 1.00 V - Calibrate V2 against this reference voltage in µV
+#define V_SURGE         4250000 // 4.25 V - maximum allowed surge voltage threshold per cell in µV
+#define V_MAX           4190000 // 4.19 V - Maximum allowed battery voltage per cell in µV
+#define V_MIN           2500000 // 2.50 V - Minimum allowed battery voltage per cell in µV
+#define V_WINDOW           2000 // 0.002 V - Do not regulate voltage when within +/- this window (per cell) in µV
 #define V_TRICKLE_START 4100000 // 4.10 V - Trickle charge threshold voltage in µV
 #define V_TRICKLE_MAX   4150000 // 4.15 V - Trickle charge maximum voltage in µV
-#define I_CALIBRATION_P    128 // Determines number of digits of the current calibration value (precision)
-#define I_WINDOW         20000 // 0.02 A - Do not regulate current when within +/- this window in µA
-#define I_DELTA          50000 // 0.05 A - current increase in µA to detect end of charge
-#define TIMEOUT_CHARGE    2000 // Time duration in ms during which vBatt shall be between V_MIN and V_MAX before starting to charge
-#define TIMEOUT_ERROR      150 // Time duration in ms during which i or vBatt shall be out of bounds in order to trigger an error condition
-#define TIMEOUT_FULL     20000 // Time duration in ms during which iFull shall not be exceeded in order to assume that battery is full
-#define TIMEOUT_TRICKLE  10000 // Time duration in ms during which vBatt shall be smaller than V_TRICKLE_MAX before starting a trickle charge
-#define TIMEOUT_ERR_RST   5000 // Time duration in ms during which vBatt shall be 0 before going back from STATE_ERROR to STATE_INIT
-#define TIMEOUT_FULL_RST  2000 // Time duration in ms during which vBatt shall be 0 before going back from STATE_FULL to STATE_INIT
-#define UPDATE_INTERVAL     50 // Interval in ms for updating the power output
-#define ADC_AVG_SAMPLES     16 // Number of ADC samples to be averaged
+#define I_CALIBRATION_P     128 // Determines number of digits of the current calibration value (precision)
+#define I_WINDOW          20000 // 0.02 A - Do not regulate current when within +/- this window in µA
+#define I_DELTA           50000 // 0.05 A - current increase in µA to detect end of charge
+#define TIMEOUT_CHARGE     2000 // Time duration in ms during which vBatt shall be between V_MIN and V_MAX before starting to charge
+#define TIMEOUT_ERROR       150 // Time duration in ms during which i or vBatt shall be out of bounds in order to trigger an error condition
+#define TIMEOUT_FULL      20000 // Time duration in ms during which iFull shall not be exceeded in order to assume that battery is full
+#define TIMEOUT_TRICKLE   10000 // Time duration in ms during which vBatt shall be smaller than V_TRICKLE_MAX before starting a trickle charge
+#define TIMEOUT_ERR_RST    5000 // Time duration in ms during which vBatt shall be 0 before going back from STATE_ERROR to STATE_INIT
+#define TIMEOUT_FULL_RST   2000 // Time duration in ms during which vBatt shall be 0 before going back from STATE_FULL to STATE_INIT
+#define UPDATE_INTERVAL      50 // Interval in ms for updating the power output
+#define ADC_AVG_SAMPLES      16 // Number of ADC samples to be averaged
 
 
 
@@ -328,7 +328,11 @@ void loop (void) {
 
       // Report battery full if iFull has not been exceeded during TIMEOUT_FULL
       if ( (G.i > Nvm.iFull) && (G.i < G.iMin + (uint32_t)I_DELTA) ) fullTs = ts;
-      if (ts - fullTs > TIMEOUT_FULL) Cli.xputs("I_full reached"), G.state = STATE_FULL_E; 
+      if (ts - fullTs > TIMEOUT_FULL) {
+        showRtParams (0, NULL);
+        Cli.xputs("I_full reached"); 
+        G.state = STATE_FULL_E; 
+      }
 
       // Calculate charged capacity by integrating i over time
       if (ts - tickTs >= 1000 /* && !trickleCharge */) {
@@ -338,10 +342,18 @@ void loop (void) {
       }
 
       // Maximum charge capacity is reached (nominal capacity + 10%, 3960 = 3600 * 1.1)
-      if (G.c > (uint32_t)Nvm.cMax * 3960 && !trickleCharge) Cli.xputs("C_max reached"), G.state = STATE_FULL_E;
+      if (G.c > (uint32_t)Nvm.cMax * 3960 && !trickleCharge) {
+        showRtParams (0, NULL); 
+        Cli.xputs ("C_max reached");
+        G.state = STATE_FULL_E;
+      }
 
       // Maximum charge duration reached
-      if (G.t > G.tMax) showRtParams (0, NULL), Cli.xprintf ("Timeout "), G.state = STATE_ERROR_E;  
+      if (G.t > G.tMax && !trickleCharge) {
+        showRtParams (0, NULL);
+        Cli.xputs ("T_max reached");
+        G.state = STATE_FULL_E;  
+      }
       break;
 
     /********************************************************************/
@@ -359,7 +371,10 @@ void loop (void) {
     case STATE_FULL:
       // Start a trickle charging cycle if V_TRICKLE_START has not been exceeded during TIMEOUT_TRICKLE
       if (G.vBatt > (int32_t)V_TRICKLE_START * Nvm.numCells) trickleTs = ts;
-      if (ts - trickleTs > TIMEOUT_TRICKLE) G.state = STATE_CHARGE_E;
+      if (ts - trickleTs > TIMEOUT_TRICKLE) {
+        showRtParams (0, NULL);
+        G.state = STATE_CHARGE_E;
+      }
 
       // Go to STATE_INIT if vBatt stayed 0 during TIMEOUT_RESET
       if (G.vBatt > 0) resetTs = ts;
