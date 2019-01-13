@@ -63,7 +63,7 @@
 #define I_CALIBRATION_P    128 // Determines number of digits of the current calibration value (precision)
 #define I_WINDOW         20000 // 0.02 A - Do not regulate current when within +/- this window in µA
 #define TIMEOUT_CHARGE    2000 // Time duration in ms during which vBatt shall be between V_MIN and V_MAX before starting to charge
-#define TIMEOUT_ERROR      150 // Time duration in ms during which vBatt shall be auto of bounds in order to trigger an error condition
+#define TIMEOUT_ERROR      150 // Time duration in ms during which i or vBatt shall be out of bounds in order to trigger an error condition
 #define TIMEOUT_FULL     20000 // Time duration in ms during which iFull shall not be exceeded in order to assume that battery is full
 #define TIMEOUT_TRICKLE   10000 // Time duration in ms during which vBatt shall be smaller than V_TRICKLE_MAX before starting a trickle charge
 #define TIMEOUT_ERR_RST   5000 // Time duration in ms during which vBatt shall be 0 before going back from STATE_ERROR to STATE_INIT
@@ -72,11 +72,7 @@
 #define ADC_AVG_SAMPLES     16 // Number of ADC samples to be averaged
 
 
-/* 
- * Code snippets
- */
-#define EEPROM_READ() eepromRead (0x0, (uint8_t*)&Nvm, sizeof (Nvm)); nvmValidate ();
-#define EEPROM_WRITE() nvmValidate (); eepromWrite (0x0, (uint8_t*)&Nvm, sizeof (Nvm));
+
 
 
 /* 
@@ -107,6 +103,7 @@ struct {
   uint32_t iCalibration; // Calibration value for calculating i
   uint32_t c = 0;        // Total charged capacity in mAs
   uint32_t t = 0;        // Charge duration
+  bool crcOk = false;         // EEPROM CRC check was successful
 } G;
 
 
@@ -121,6 +118,7 @@ struct {
   uint32_t iMax;           // Maximum charging current in µA
   uint32_t rShunt;         // Shunt resistor value in mΩ
   uint32_t cMax;           // Battery capacity in mAh
+  uint32_t crc;            // CRC checksum
 } Nvm;
 
 
@@ -143,7 +141,38 @@ void nvmValidate (void) {
 
   // Calculate the maximum allowed charge duration
   G.tMax = ( (2 * 3600 * Nvm.cMax) / (Nvm.iMax / 1000) );
+
 }
+
+
+/*
+ * Read and validate EEPROM data
+ */
+void nvmRead (void) {
+  uint32_t crc;
+  
+  eepromRead (0x0, (uint8_t*)&Nvm, sizeof (Nvm)); 
+  nvmValidate ();
+
+  // Calculate and check CRC checksum
+  crc = crcCalc ((uint8_t*)&Nvm, sizeof (Nvm) - 4);
+  //Cli.xprintf ("Crc = %lx\n\n", crc);
+
+  if (crc != Nvm.crc) G.crcOk = false;
+  else G.crcOk = true;
+}
+
+
+/*
+ * Write and validate EEPROM data
+ */
+void nvmWrite (void) {
+  nvmValidate (); 
+  Nvm.crc = crcCalc ((uint8_t*)&Nvm, sizeof (Nvm) - 4);
+  //Cli.xprintf ("Crc = %lx\n\n", Nvm.crc);
+  eepromWrite (0x0, (uint8_t*)&Nvm, sizeof (Nvm));
+}
+
 
 
 /*
@@ -182,7 +211,7 @@ void setup (void) {
   Led.initialize (LED_PIN);
 
   // Read the settngm from EEPROM and validate them
-  EEPROM_READ()
+  nvmRead ();
 
   // Enable the watchdog
   wdt_enable (WDTO_1S);
@@ -218,6 +247,9 @@ void loop (void) {
 
   // Read the ADC channels
   adcRead ();
+
+  // Force the error STATE if CRC error occurred
+  if (!G.crcOk && G.state != STATE_ERROR) Cli.xprintf ("CRC "), G.state = STATE_ERROR_E;
 
 
   // Main state machine
@@ -273,14 +305,18 @@ void loop (void) {
         analogWrite (MOSFET_PIN, (int8_t)G.dutyCycle);
       }
       
-      // Signal an error if vBatt stays out of bounds during TIMEOUT_ERROR
-      if (G.vBatt > (int32_t)V_MIN * Nvm.numCells && G.vBatt < (int32_t)V_SURGE * Nvm.numCells) errorTs = ts;
+      // Signal an error if vBatt stays out of bounds or open circuit condition occurs during TIMEOUT_ERROR
+      if ( G.vBatt > (int32_t)V_MIN * Nvm.numCells && 
+           G.vBatt < (int32_t)V_SURGE * Nvm.numCells && 
+           !(G.i == 0 && G.dutyCycle > 0)               ) errorTs = ts;
       if (ts - errorTs > TIMEOUT_ERROR) {
         showRtParams (0, NULL);
         if (G.vBatt > (int32_t)V_SURGE * Nvm.numCells) Cli.xprintf ("Overvolt ");
         if (G.vBatt < (int32_t)V_MIN * Nvm.numCells  ) Cli.xprintf ("Undervolt ");
+        if (G.i == 0 && G.dutyCycle > 0)               Cli.xprintf ("Open circuit ");
         G.state = STATE_ERROR_E;
       }
+
 
       // Report battery full if iFull has not been exceeded during TIMEOUT_FULL
       if (G.i > Nvm.iFull) fullTs = ts;
@@ -288,7 +324,7 @@ void loop (void) {
 
       // Calculate charged capacity by integrating i over time
       if (ts - tickTs >= 1000 && !trickleCharge) {
-        tickTs = ts;
+        tickTs += 1000;
         G.t++;
         G.c += (G.i / 1000);
       }
@@ -334,7 +370,7 @@ void loop (void) {
     case STATE_ERROR:
       // Go to STATE_INIT if vBatt stayed 0 during TIMEOUT_RESET
       if (G.vBatt > 0) resetTs = ts;
-      if (ts - resetTs > TIMEOUT_ERR_RST) G.state = STATE_INIT_E;
+      if (ts - resetTs > TIMEOUT_ERR_RST && G.crcOk) G.state = STATE_INIT_E;
       break;
 
       
@@ -454,7 +490,7 @@ int showCalibration (int argc, char **argv) {
  */
 int numCellsSet (int argc, char **argv) {
   Nvm.numCells = atol (argv[1]);
-  EEPROM_WRITE()
+  nvmWrite ();
   Cli.xprintf("N_cells = %ld\n", Nvm.numCells);
   Cli.xputs("");
   return 0;
@@ -467,7 +503,7 @@ int numCellsSet (int argc, char **argv) {
  */
 int iMaxSet (int argc, char **argv) {
   Nvm.iMax = atol (argv[1]) * 1000;
-  EEPROM_WRITE()
+  nvmWrite ();
   Cli.xprintf("I_max = %lu mA\n", Nvm.iMax / 1000);
   Cli.xputs("");
   return 0;
@@ -480,7 +516,7 @@ int iMaxSet (int argc, char **argv) {
  */
 int iFullSet (int argc, char **argv) {
   Nvm.iFull = atol (argv[1]) * 1000;
-  EEPROM_WRITE()
+  nvmWrite ();
   Cli.xprintf("I_full = %lu mA\n", Nvm.iFull / 1000);
   Cli.xputs("");
   return 0;
@@ -493,7 +529,7 @@ int iFullSet (int argc, char **argv) {
  */
 int cMaxSet (int argc, char **argv) {
   Nvm.cMax = atol (argv[1]);
-  EEPROM_WRITE()
+  nvmWrite ();
   Cli.xprintf("C_max = %lu mAh\n", Nvm.cMax);
   Cli.xputs("");
   return 0;
@@ -506,7 +542,7 @@ int cMaxSet (int argc, char **argv) {
  */
 int rShuntSet (int argc, char **argv) {
   Nvm.rShunt = atol (argv[1]);
-  EEPROM_WRITE()
+  nvmWrite ();
   Cli.xprintf("R_shunt = %lu mΩ\n", Nvm.rShunt);
   Cli.xprintf("I_cal   = %lu\n", G.iCalibration);
   Cli.xputs("");
@@ -519,7 +555,7 @@ int rShuntSet (int argc, char **argv) {
  */
 void calibrateV1 (void) {
   Nvm.v1Calibration = ((int32_t)V1_REF * Nvm.numCells) / (int32_t)G.v1Raw;
-  EEPROM_WRITE()
+  nvmWrite ();
   Cli.xprintf("V1_cal = %lu\n", Nvm.v1Calibration);
   Cli.xputs("");
 }
@@ -530,7 +566,7 @@ void calibrateV1 (void) {
  */
 void calibrateV2 (void) {
   Nvm.v2Calibration = (int32_t)V2_REF / (int32_t)G.v2Raw;
-  EEPROM_WRITE()
+  nvmWrite ();
   Cli.xprintf("V2_cal = %lu\n", Nvm.v2Calibration);
   Cli.xputs("");
 }
