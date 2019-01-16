@@ -23,11 +23,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>. 
  * 
- * Version: 1.0.0
+ * Version: 1.1.0
  * Date:    January 2019
  */
 #define VERSION_MAJOR 1  // major version
-#define VERSION_MINOR 0  // minor version
+#define VERSION_MINOR 1  // minor version
 #define VERSION_MAINT 0  // maintenance version
 
 #include <avr/sleep.h>
@@ -56,13 +56,15 @@
 #define V2_REF          1000000 // 1.00 V - Calibrate V2 against this reference voltage in µV
 #define V_SURGE         4250000 // 4.25 V - maximum allowed surge voltage threshold per cell in µV
 #define V_MAX           4190000 // 4.19 V - Maximum allowed battery voltage per cell in µV
-#define V_MIN           2500000 // 2.50 V - Minimum allowed battery voltage per cell in µV
+#define V_MIN           2000000 // 2.00 V - Minimum allowed battery voltage per cell in µV for starting a charge
+#define V_SAFE          2600000 // 2.60 V - Battery voltage threshold per cell in µV for charging at full current
 #define V_WINDOW           2000 // 0.002 V - Do not regulate voltage when within +/- this window (per cell) in µV
 #define V_TRICKLE_START 4100000 // 4.10 V - Trickle charge threshold voltage in µV
 #define V_TRICKLE_MAX   4150000 // 4.15 V - Trickle charge maximum voltage in µV
 #define I_CALIBRATION_P     128 // Determines number of digits of the current calibration value (precision)
 #define I_WINDOW          20000 // 0.02 A - Do not regulate current when within +/- this window in µA
-#define I_DELTA           50000 // 0.05 A - current increase in µA to detect end of charge
+#define I_DELTA           50000 // 0.05 A - Current increase in µA to detect end of charge
+#define I_SAFE            50000 // 0.05 A - Charging current in µA for voltage below V_SAFE
 #define TIMEOUT_CHARGE     2000 // Time duration in ms during which vBatt shall be between V_MIN and V_MAX before starting to charge
 #define TIMEOUT_ERROR       150 // Time duration in ms during which i or vBatt shall be out of bounds in order to trigger an error condition
 #define TIMEOUT_FULL      20000 // Time duration in ms during which iFull shall not be exceeded in order to assume that battery is full
@@ -95,8 +97,10 @@ struct {
   uint32_t v1;           // V1 - Voltage at the battery '+' terminal (MOSFET drain) in µV
   uint32_t v2;           // V2 - Voltage at the battery '-' terminal (shunt) in µV
   uint32_t vBatt;        // Vbatt - Battery voltage = V1 - V2 in µV
-  uint32_t vMax;         // Maximum allowed voltage per cell during charging in µV
-  uint32_t i;            // I - Current in µA
+  uint32_t vMax;         // Maximum allowed battery voltage during charging in µV
+  uint32_t vMin;         // Minimum allowed battery voltage during charging in µV
+  uint32_t i;            // I - Charging current in µA
+  uint32_t iMax;         // I_max - Maximum charging current in µA
   uint32_t iMin;         // I_min - historically minimum charge current
   uint32_t v1Raw;        // Raw ADC value of V1
   uint32_t v2Raw;        // Raw ADC value of V2
@@ -105,7 +109,7 @@ struct {
   uint32_t iCalibration; // Calibration value for calculating i
   uint32_t c = 0;        // Total charged capacity in mAs
   uint32_t t = 0;        // Charge duration
-  bool crcOk = false;         // EEPROM CRC check was successful
+  bool crcOk = false;    // EEPROM CRC check was successful
 } G;
 
 
@@ -113,13 +117,13 @@ struct {
  * Parameters stored in EEPROM (non-volatile memory)
  */
 struct {
-  uint32_t v1Calibration;  // Calibration value for calculating v1
-  uint32_t v2Calibration;  // Calibration value for calculating v2
-  uint32_t iFull;          // End of charge current in µA
-  uint32_t numCells;       // Number of Lithium-Ion cells
-  uint32_t iMax;           // Maximum charging current in µA
-  uint32_t rShunt;         // Shunt resistor value in mΩ
-  uint32_t cMax;           // Battery capacity in mAh
+  uint32_t v1Calibration;  // V1_cal - Calibration value for calculating v1
+  uint32_t v2Calibration;  // V2_cal - Calibration value for calculating v2
+  uint32_t iFull;          // I_full - End of charge current in µA
+  uint32_t numCells;       // N_cells - Number of Lithium-Ion cells
+  uint32_t iChrg;          // I_chrg - Maximum charging current in µA
+  uint32_t rShunt;         // R_shung - Shunt resistor value in mΩ
+  uint32_t cMax;           // c_Max - Battery capacity in mAh
   uint32_t crc;            // CRC checksum
 } Nvm;
 
@@ -131,7 +135,7 @@ struct {
  */
 void nvmValidate (void) {
   if (Nvm.numCells < 0 || Nvm.numCells > 6) Nvm.numCells = 1;
-  if (Nvm.iMax < 100000 || Nvm.iMax > 5000000) Nvm.iMax = 100000;
+  if (Nvm.iChrg < 100000 || Nvm.iChrg > 5000000) Nvm.iChrg = 100000;
   if (Nvm.iFull < 20000 || Nvm.iFull > 500000) Nvm.iFull = 500000;
   if (Nvm.v1Calibration < 4000 || Nvm.v1Calibration > 40000) Nvm.v1Calibration = 40000;
   if (Nvm.v2Calibration < 800  || Nvm.v2Calibration > 1200 ) Nvm.v2Calibration = 1200;
@@ -142,7 +146,7 @@ void nvmValidate (void) {
   G.iCalibration = ((int32_t)I_CALIBRATION_P * 1000) / Nvm.rShunt;
 
   // Calculate the maximum allowed charge duration
-  G.tMax = ( (2 * 3600 * Nvm.cMax) / (Nvm.iMax / 1000) );
+  G.tMax = ( (2 * 3600 * Nvm.cMax) / (Nvm.iChrg / 1000) );
 
 }
 
@@ -158,7 +162,7 @@ void nvmRead (void) {
 
   // Calculate and check CRC checksum
   crc = crcCalc ((uint8_t*)&Nvm, sizeof (Nvm) - 4);
-  Cli.xprintf ("CRC = %lx\n\n", crc);
+  //Cli.xprintf ("CRC = %lx\n\n", crc);
 
   if (crc != Nvm.crc) G.crcOk = false;
   else G.crcOk = true;
@@ -171,7 +175,7 @@ void nvmRead (void) {
 void nvmWrite (void) {
   nvmValidate (); 
   Nvm.crc = crcCalc ((uint8_t*)&Nvm, sizeof (Nvm) - 4);
-  Cli.xprintf ("CRC = %lx\n\n", Nvm.crc);
+  //Cli.xprintf ("CRC = %lx\n\n", Nvm.crc);
   eepromWrite (0x0, (uint8_t*)&Nvm, sizeof (Nvm));
 }
 
@@ -194,7 +198,7 @@ void setup (void) {
   Cli.xputs ("");
   Cli.newCmd ("ncells", "set N_cells", numCellsSet);
   Cli.newCmd ("cmax", "set C_max in mAh", cMaxSet);
-  Cli.newCmd ("imax", "set I_max in mA", iMaxSet);
+  Cli.newCmd ("ichrg", "set I_chrg in mA", iChrgSet);
   Cli.newCmd ("ifull", "set I_full in mA", iFullSet);
   Cli.newCmd ("rshunt", "set R_shunt in mΩ", rShuntSet);
   Cli.newCmd ("c", "calibration params", showCalibration);
@@ -263,7 +267,9 @@ void loop (void) {
     case STATE_INIT_E:
       Led.blink (-1, 500, 1500);
       trickleCharge = false; 
-      G.vMax = (int32_t)V_MAX; // Set vMax to full charge level
+      G.vMax = (int32_t)V_MAX * Nvm.numCells; // Set vMax to full charge level
+      G.vMin = (int32_t)V_MIN * Nvm.numCells;
+      G.iMax = (int32_t)I_SAFE;
       chargeTs = ts;
       G.dutyCycle = 0;
       analogWrite (MOSFET_PIN, 0);
@@ -271,7 +277,7 @@ void loop (void) {
       G.state = STATE_INIT; 
     case STATE_INIT:
       // Start charging if vBatt stays within bounds during TIMEOUT_CHARGE
-      if ( G.vBatt < (int32_t)V_MIN * Nvm.numCells || G.vBatt > (int32_t)V_MAX * Nvm.numCells ) chargeTs = ts;
+      if ( G.vBatt < G.vMin || G.vBatt > G.vMax ) chargeTs = ts;
       if (ts - chargeTs > TIMEOUT_CHARGE) {
         G.c = 0;
         G.t = 0;
@@ -286,39 +292,50 @@ void loop (void) {
       errorTs = ts;
       fullTs = ts;
       tickTs = ts;
-      G.iMin = Nvm.iMax;
+      G.vMin = (int32_t)V_MIN * Nvm.numCells;
+      G.iMin = Nvm.iChrg;
       iMinCalc = false;
       if (trickleCharge) Cli.xputs ("Trickle charging\n");
       else              Cli.xputs ("Charging\n");
       G.state = STATE_CHARGE;
     case STATE_CHARGE:
+
       // Run the regulation routine at the preset interval
       if (ts - updateTs > UPDATE_INTERVAL) {
         updateTs = ts;
 
         // Regulate voltage and current with the CC-CV algorithm
-        if ( ( G.vBatt > ( G.vMax + (int32_t)V_WINDOW ) * Nvm.numCells ) ||
-             ( G.i     > Nvm.iMax + (int32_t)I_WINDOW ) ) {
+        if ( ( G.vBatt > G.vMax + (int32_t)V_WINDOW * Nvm.numCells ) ||
+             ( G.i     > G.iMax + (int32_t)I_WINDOW ) ) {
           if (G.dutyCycle > 0) G.dutyCycle--;
           iMinCalc = true;
         }
-        else if ( ( G.vBatt < ( G.vMax - (int32_t)V_WINDOW ) * Nvm.numCells ) &&
-                  ( G.i     < Nvm.iMax - (int32_t)I_WINDOW ) ) {
+        else if ( ( G.vBatt < G.vMax - (int32_t)V_WINDOW * Nvm.numCells ) &&
+                  ( G.i     < G.iMax - (int32_t)I_WINDOW ) ) {
           if (G.dutyCycle < 255) G.dutyCycle++;
         }
 
         // Update the PWM duty cycle
         analogWrite (MOSFET_PIN, (int8_t)G.dutyCycle);
       }
+
+      // Calculate the charging current
+      if (G.vBatt < (uint32_t)V_SAFE * Nvm.numCells) G.iMax = (uint32_t)I_SAFE;
+      else                                           G.iMax = Nvm.iChrg;
+
+      // Calculate the minimum allowed battery voltage
+      if (G.vMin < G.vBatt - 10 * Nvm.numCells * (int32_t)V_WINDOW) {
+        G.vMin = G.vBatt - 10 * Nvm.numCells * (int32_t)V_WINDOW;
+      }
       
       // Signal an error if vBatt stays out of bounds or open circuit condition occurs during TIMEOUT_ERROR
-      if ( G.vBatt > (int32_t)V_MIN * Nvm.numCells && 
+      if ( G.vBatt > (int32_t)G.vMin && 
            G.vBatt < (int32_t)V_SURGE * Nvm.numCells && 
            !(G.i == 0 && G.dutyCycle > 0)               ) errorTs = ts;
       if (ts - errorTs > TIMEOUT_ERROR) {
         showRtParams (0, NULL);
         if (G.vBatt > (int32_t)V_SURGE * Nvm.numCells) Cli.xprintf ("Overvolt ");
-        if (G.vBatt < (int32_t)V_MIN * Nvm.numCells  ) Cli.xprintf ("Undervolt ");
+        if (G.vBatt < (int32_t)G.vMin )                Cli.xprintf ("Undervolt ");
         if (G.i == 0 && G.dutyCycle > 0)               Cli.xprintf ("Open circuit ");
         G.state = STATE_ERROR_E;
       }
@@ -327,7 +344,7 @@ void loop (void) {
       if (iMinCalc && G.i < G.iMin) G.iMin = G.i;
 
       // Report battery full if iFull has not been exceeded during TIMEOUT_FULL
-      if ( (G.i > Nvm.iFull) && (G.i < G.iMin + (uint32_t)I_DELTA) ) fullTs = ts;
+      if ( (G.i > Nvm.iFull || G.iMax <= Nvm.iFull) && (G.i < G.iMin + (uint32_t)I_DELTA) ) fullTs = ts;
       if (ts - fullTs > TIMEOUT_FULL) {
         showRtParams (0, NULL);
         if (G.i < Nvm.iFull)                  Cli.xputs("I_full reached"); 
@@ -362,7 +379,7 @@ void loop (void) {
     case STATE_FULL_E:
       Led.blink (-1, 100, 1900);
       trickleCharge = true;
-      G.vMax = (int32_t)V_TRICKLE_MAX; // Reduce vMax to trickle charge level
+      G.vMax = (int32_t)V_TRICKLE_MAX * Nvm.numCells; // Reduce vMax to trickle charge level
       trickleTs = ts;
       resetTs = ts;
       G.dutyCycle = 0;
@@ -472,17 +489,19 @@ int showRtParams (int argc, char **argv) {
   uint32_t hour = G.t / 3600;
   uint32_t min = G.t / 60 - (hour * 60);
   uint32_t sec = G.t - (hour * 3600) - (min * 60);
-  Cli.xprintf ("T      = %luh %lum %lus\n", hour, min, sec);
-  Cli.xprintf ("C      = %lu mAh\n", G.c / 3600);
-  Cli.xprintf ("I      = %lu mA\n", G.i / 1000);
-  Cli.xprintf ("I_min  = %lu mA\n", G.iMin / 1000);
+  Cli.xprintf ("T = %02u:%02u:%02u\n", (uint8_t)hour, (uint8_t)min, (uint8_t)sec);
+  Cli.xprintf ("C = %lu mAh\n", G.c / 3600);
+  Cli.xprintf ("I     = %lu mA\n", G.i / 1000);
+  Cli.xprintf ("I_max = %lu mA\n", G.iMax / 1000);  
+  Cli.xprintf ("I_min = %lu mA\n", G.iMin / 1000);
   Cli.xprintf ("V_batt = %lu mV\n", G.vBatt / 1000);
-  Cli.xprintf ("V_max  = %lu mV\n", (G.vMax * Nvm.numCells) / 1000);
-  Cli.xprintf ("PWM    = %u\n", G.dutyCycle);
+  Cli.xprintf ("V_max  = %lu mV\n", G.vMax / 1000);
+  Cli.xprintf ("V_min  = %lu mV\n", G.vMin / 1000);
+  Cli.xprintf ("PWM = %u\n", G.dutyCycle);
   Cli.xprintf ("V1_raw = %lu\n", G.v1Raw);
   Cli.xprintf ("V2_raw = %lu\n", G.v2Raw);
-  Cli.xprintf ("V1     = %lu mV\n", G.v1 / 1000);
-  Cli.xprintf ("V2     = %lu mV\n", G.v2 / 1000);
+  Cli.xprintf ("V1 = %lu mV\n", G.v1 / 1000);
+  Cli.xprintf ("V2 = %lu mV\n", G.v2 / 1000);
   Cli.xputs("");
   return 0;
 }
@@ -497,7 +516,7 @@ int showRtParams (int argc, char **argv) {
 int showCalibration (int argc, char **argv) {
   Cli.xprintf("N_cells = %lu\n", Nvm.numCells);
   Cli.xprintf("C_max   = %lu mAh\n", Nvm.cMax);
-  Cli.xprintf("I_max   = %lu mA\n", Nvm.iMax / 1000);
+  Cli.xprintf("I_chrg  = %lu mA\n", Nvm.iChrg / 1000);
   Cli.xprintf("I_full  = %lu mA\n", Nvm.iFull / 1000);
   Cli.xprintf("T_max   = %lu min\n", G.tMax / 60);
   Cli.xprintf("R_shunt = %lu mΩ\n", Nvm.rShunt);
@@ -518,6 +537,7 @@ int numCellsSet (int argc, char **argv) {
   nvmWrite ();
   Cli.xprintf("N_cells = %ld\n", Nvm.numCells);
   Cli.xputs("");
+  G.state = STATE_INIT_E;
   return 0;
 }
 
@@ -526,10 +546,10 @@ int numCellsSet (int argc, char **argv) {
  * CLI command for setting the charge current
  * argv[1]: current in mA
  */
-int iMaxSet (int argc, char **argv) {
-  Nvm.iMax = atol (argv[1]) * 1000;
+int iChrgSet (int argc, char **argv) {
+  Nvm.iChrg = atol (argv[1]) * 1000;
   nvmWrite ();
-  Cli.xprintf("I_max = %lu mA\n", Nvm.iMax / 1000);
+  Cli.xprintf("I_chrg = %lu mA\n", Nvm.iChrg / 1000);
   Cli.xputs("");
   return 0;
 }
@@ -616,8 +636,8 @@ int calibrate (int argc, char **argv) {
   }
   else {
     G.state = STATE_CALIBRATE_E;        
-    Cli.xprintf("V1_ref  = %lu mV\n", (V1_REF * Nvm.numCells) / 1000);
-    Cli.xprintf("V2_ref  = %lu mV\n\n", V2_REF / 1000);
+    Cli.xprintf("V1_ref = %lu mV\n", (V1_REF * Nvm.numCells) / 1000);
+    Cli.xprintf("V2_ref = %lu mV\n\n", V2_REF / 1000);
   }
   return 0;
 }
