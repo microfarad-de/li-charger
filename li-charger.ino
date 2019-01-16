@@ -59,6 +59,7 @@
 #define V_MIN           2000000 // 2.00 V - Minimum allowed battery voltage per cell in µV for starting a charge
 #define V_SAFE          2600000 // 2.60 V - Battery voltage threshold per cell in µV for charging at full current
 #define V_WINDOW           2000 // 0.002 V - Do not regulate voltage when within +/- this window (per cell) in µV
+#define V_DELTA           30000 // 0.03 V - Maximum momentary battery voltage drop per cell in µV
 #define V_TRICKLE_START 4100000 // 4.10 V - Trickle charge threshold voltage in µV
 #define V_TRICKLE_MAX   4150000 // 4.15 V - Trickle charge maximum voltage in µV
 #define I_CALIBRATION_P     128 // Determines number of digits of the current calibration value (precision)
@@ -324,8 +325,9 @@ void loop (void) {
       else                                           G.iMax = Nvm.iChrg;
 
       // Calculate the minimum allowed battery voltage
-      if (G.vMin < G.vBatt - 10 * Nvm.numCells * (int32_t)V_WINDOW) {
-        G.vMin = G.vBatt - 10 * Nvm.numCells * (int32_t)V_WINDOW;
+      if (G.vMin < G.vBatt - (int32_t)V_DELTA * Nvm.numCells) {
+        if (G.vBatt < G.vMax) G.vMin = G.vBatt - (int32_t)V_DELTA * Nvm.numCells;
+        else                  G.vMin = G.vMax  - (int32_t)V_DELTA * Nvm.numCells;
       }
       
       // Signal an error if vBatt stays out of bounds or open circuit condition occurs during TIMEOUT_ERROR
