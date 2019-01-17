@@ -149,6 +149,7 @@ int CliClass::getCmd(void)
         }
       }        
       xprintf("Unknown '%s'\n", argv[0]);
+      xputs("");
       break;
 
     default:       
