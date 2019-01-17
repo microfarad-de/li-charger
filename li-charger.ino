@@ -66,12 +66,12 @@
 #define I_WINDOW          15000 // 0.015 A - Do not regulate current when within +/- this window in µA
 #define I_DELTA          100000 // 0.1 A - Current increase in µA to detect end of charge
 #define I_SAFE_FACTOR        20 // Divide I_chrg by this value to calculate I_safe, which is the reduced safety charging current
-#define TIMEOUT_CHARGE     2000 // Time duration in ms during which vBatt shall be between V_MIN and V_MAX before starting to charge
-#define TIMEOUT_ERROR       150 // Time duration in ms during which i or vBatt shall be out of bounds in order to trigger an error condition
+#define TIMEOUT_CHARGE     2000 // Time duration in ms during which V shall be between V_MIN and V_MAX before starting to charge
+#define TIMEOUT_ERROR       150 // Time duration in ms during which i or V shall be out of bounds in order to trigger an error condition
 #define TIMEOUT_FULL      20000 // Time duration in ms during which iFull shall not be exceeded in order to assume that battery is full
-#define TIMEOUT_TRICKLE   10000 // Time duration in ms during which vBatt shall be smaller than V_TRICKLE_MAX before starting a trickle charge
-#define TIMEOUT_ERR_RST    5000 // Time duration in ms during which vBatt shall be 0 before going back from STATE_ERROR to STATE_INIT
-#define TIMEOUT_FULL_RST   2000 // Time duration in ms during which vBatt shall be 0 before going back from STATE_FULL to STATE_INIT
+#define TIMEOUT_TRICKLE   10000 // Time duration in ms during which V shall be smaller than V_TRICKLE_MAX before starting a trickle charge
+#define TIMEOUT_ERR_RST    5000 // Time duration in ms during which V shall be 0 before going back from STATE_ERROR to STATE_INIT
+#define TIMEOUT_FULL_RST   2000 // Time duration in ms during which V shall be 0 before going back from STATE_FULL to STATE_INIT
 #define UPDATE_INTERVAL      50 // Interval in ms for updating the power output
 #define ADC_AVG_SAMPLES      16 // Number of ADC samples to be averaged
 
@@ -97,7 +97,7 @@ struct {
   State_t state = STATE_INIT_E; // Current state machine state
   uint32_t v1;           // V1 - Voltage at the battery '+' terminal (MOSFET drain) in µV
   uint32_t v2;           // V2 - Voltage at the battery '-' terminal (shunt) in µV
-  uint32_t vBatt;        // Vbatt - Battery voltage = V1 - V2 in µV
+  uint32_t v;            // V  - Battery voltage = V1 - V2 in µV
   uint32_t vMax;         // Maximum allowed battery voltage during charging in µV
   uint32_t vMin;         // Minimum allowed battery voltage during charging in µV
   uint32_t i;            // I - Charging current in µA
@@ -302,8 +302,8 @@ void loop (void) {
       Cli.xputs ("Waiting for battery\n");
       G.state = STATE_INIT; 
     case STATE_INIT:
-      // Start charging if vBatt stays within bounds during TIMEOUT_CHARGE
-      if ( G.vBatt < G.vMin || G.vBatt > G.vMax ) chargeTs = ts;
+      // Start charging if V stays within bounds during TIMEOUT_CHARGE
+      if ( G.v < G.vMin || G.v > G.vMax ) chargeTs = ts;
       if (ts - chargeTs > TIMEOUT_CHARGE) {
         G.c = 0;
         G.t = 0;
@@ -331,12 +331,12 @@ void loop (void) {
         updateTs = ts;
 
         // Regulate voltage and current with the CC-CV algorithm
-        if ( ( G.vBatt > G.vMax + (int32_t)V_WINDOW * Nvm.numCells ) ||
+        if ( ( G.v > G.vMax + (int32_t)V_WINDOW * Nvm.numCells ) ||
              ( G.i     > G.iMax + (int32_t)I_WINDOW ) ) {
           if (G.dutyCycle > 0) G.dutyCycle--;
           iMinCalc = true;
         }
-        else if ( ( G.vBatt < G.vMax - (int32_t)V_WINDOW * Nvm.numCells ) &&
+        else if ( ( G.v < G.vMax - (int32_t)V_WINDOW * Nvm.numCells ) &&
                   ( G.i     < G.iMax - (int32_t)I_WINDOW ) ) {
           if (G.dutyCycle < 255) G.dutyCycle++;
         }
@@ -346,23 +346,23 @@ void loop (void) {
       }
 
       // Calculate the charging current
-      if (G.vBatt < (uint32_t)V_SAFE * Nvm.numCells) G.iMax = G.iSafe;
+      if (G.v < (uint32_t)V_SAFE * Nvm.numCells) G.iMax = G.iSafe;
       else                                           G.iMax = Nvm.iChrg;
 
       // Calculate the minimum allowed battery voltage
-      if (G.vMin < G.vBatt - (int32_t)V_DELTA * Nvm.numCells) {
-        if (G.vBatt < G.vMax) G.vMin = G.vBatt - (int32_t)V_DELTA * Nvm.numCells;
+      if (G.vMin < G.v - (int32_t)V_DELTA * Nvm.numCells) {
+        if (G.v < G.vMax) G.vMin = G.v - (int32_t)V_DELTA * Nvm.numCells;
         else                  G.vMin = G.vMax  - (int32_t)V_DELTA * Nvm.numCells;
       }
       
-      // Signal an error if vBatt stays out of bounds or open circuit condition occurs during TIMEOUT_ERROR
-      if ( G.vBatt > (int32_t)G.vMin && 
-           G.vBatt < (int32_t)V_SURGE * Nvm.numCells && 
+      // Signal an error if V stays out of bounds or open circuit condition occurs during TIMEOUT_ERROR
+      if ( G.v > (int32_t)G.vMin && 
+           G.v < (int32_t)V_SURGE * Nvm.numCells && 
            !(G.i == 0 && G.dutyCycle > 0)               ) errorTs = ts;
       if (ts - errorTs > TIMEOUT_ERROR) {
         showRtParams (0, NULL);
-        if (G.vBatt > (int32_t)V_SURGE * Nvm.numCells) Cli.xprintf ("Overvolt ");
-        if (G.vBatt < (int32_t)G.vMin )                Cli.xprintf ("Undervolt ");
+        if (G.v > (int32_t)V_SURGE * Nvm.numCells) Cli.xprintf ("Overvolt ");
+        if (G.v < (int32_t)G.vMin )                Cli.xprintf ("Undervolt ");
         if (G.i == 0 && G.dutyCycle > 0)               Cli.xprintf ("Open circuit ");
         G.state = STATE_ERROR_E;
       }
@@ -416,14 +416,14 @@ void loop (void) {
       G.state = STATE_FULL;     
     case STATE_FULL:
       // Start a trickle charging cycle if V_TRICKLE_START has not been exceeded during TIMEOUT_TRICKLE
-      if (G.vBatt > (int32_t)V_TRICKLE_START * Nvm.numCells) trickleTs = ts;
+      if (G.v > (int32_t)V_TRICKLE_START * Nvm.numCells) trickleTs = ts;
       if (ts - trickleTs > TIMEOUT_TRICKLE) {
         showRtParams (0, NULL);
         G.state = STATE_CHARGE_E;
       }
 
-      // Go to STATE_INIT if vBatt stayed 0 during TIMEOUT_RESET
-      if (G.vBatt > 0) resetTs = ts;
+      // Go to STATE_INIT if V stayed 0 during TIMEOUT_RESET
+      if (G.v > 0) resetTs = ts;
       if (ts - resetTs > TIMEOUT_FULL_RST) G.state = STATE_INIT_E;
       break;
         
@@ -437,8 +437,8 @@ void loop (void) {
       Cli.xputs ("ERROR\n");
       G.state = STATE_ERROR;   
     case STATE_ERROR:
-      // Go to STATE_INIT if vBatt stayed 0 during TIMEOUT_RESET
-      if (G.vBatt > 0) resetTs = ts;
+      // Go to STATE_INIT if V stayed 0 during TIMEOUT_RESET
+      if (G.v > 0) resetTs = ts;
       if (ts - resetTs > TIMEOUT_ERR_RST && G.crcOk) G.state = STATE_INIT_E;
       break;
 
@@ -484,7 +484,7 @@ void adcRead (void) {
     // Calculate voltage and current
     G.v1 = (int32_t)G.v1Raw * Nvm.v1Calibration;
     G.v2 = (int32_t)G.v2Raw * Nvm.v2Calibration;
-    G.vBatt = G.v1 - G.v2;
+    G.v  = G.v1 - G.v2;
     G.i  = ( (int32_t)G.v2 * G.iCalibration ) / I_CALIBRATION_P ;
   }
 }
@@ -521,7 +521,7 @@ int showRtParams (int argc, char **argv) {
   Cli.xprintf ("I      = %lu mA\n", G.i / 1000);
   Cli.xprintf ("I_max  = %lu mA\n", G.iMax / 1000);  
   Cli.xprintf ("I_min  = %lu mA\n", G.iMin / 1000);
-  Cli.xprintf ("V_batt = %lu mV\n", G.vBatt / 1000);
+  Cli.xprintf ("V      = %lu mV\n", G.v / 1000);
   Cli.xprintf ("V_max  = %lu mV\n", G.vMax / 1000);
   Cli.xprintf ("V_min  = %lu mV\n", G.vMin / 1000);
   Cli.xprintf ("PWM    = %u\n", G.dutyCycle);
