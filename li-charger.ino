@@ -211,7 +211,7 @@ void nvmWrite (void) {
  * the maximum charge duration T_max and
  * the maximum charge capacity C_max
  */
-void calcTmaxCmax (void) {
+void calcTmaxCmax (bool trickleCharge) {
   uint8_t i, soc;
   uint32_t tSafe;
   
@@ -235,24 +235,34 @@ void calcTmaxCmax (void) {
      T_max (s) = 3600 * (C_full / I_chrg) * (80 - SoC) / 100 + 30 * 60s + T_safe
      If V < V_safe * N_cells: T_safe (s) = (V_safe * N_cells - V) * 1 * 60s / 100000
      Else: T_safe (s) = 0
-     Always add time G.t elapsed to enable trickle charging.
   */
-  if (G.v < (uint32_t)V_SAFE * Nvm.numCells) {  
-    // 6 / 10000 = 1 * 60 / 100000
-    tSafe = (((uint32_t)V_SAFE * Nvm.numCells - G.v) * 6) / 10000;
+  if (!trickleCharge) {
+    if (G.v < (uint32_t)V_SAFE * Nvm.numCells) {  
+      // 6 / 10000 = 1 * 60 / 100000
+      tSafe = (((uint32_t)V_SAFE * Nvm.numCells - G.v) * 6) / 10000;
+    }
+    else {
+      tSafe = 0;
+    }
+    // 36 = 3600 / 100; 1800 = 30 * 60
+    G.tMax = ( 36 * (90 - soc) * (uint32_t)Nvm.cFull ) / (uint32_t)Nvm.iChrg + 1800 + tSafe;
   }
   else {
-    tSafe = 0;
+    // Allow for 15 charging minutes in every trickle charge cycle
+    G.tMax = 15 * 60 + G.t;
   }
-  // 36 = 3600 / 100; 1800 = 30 * 60
-  G.tMax = ( 36 * (90 - soc) * (uint32_t)Nvm.cFull ) / (uint32_t)Nvm.iChrg + 1800 + tSafe + G.t;
 
   /* Calculate the maximum allowed charge capacity
      C_max (mAs) = 3600 * C_full * 1.11 * (100 - SoC) / 100
-     Equals remaining capacity + 11%: 40 = 3600 * 1.11 / 100) 
-     Always add alread charged capacity G.c to enable trickle charging.
+     Equals remaining capacity + 11%: 40 = 3600 * 1.11 / 100
   */
-  G.cMax = 40 * (100 - soc) * (uint32_t)Nvm.cFull + G.c;
+  if (!trickleCharge) {
+    G.cMax = 40 * (100 - soc) * (uint32_t)Nvm.cFull;
+  }
+  else {
+    // Top-up 1% of C_full for every trickle charge cycle
+    G.cMax = 36 * 1 * (uint32_t)Nvm.cFull + G.c;
+  }
   
 }
 
@@ -376,7 +386,7 @@ void loop (void) {
       G.iMax = (uint32_t)G.iSafe * 1000;
       iMinCalc = false;
       safeCharge = true;
-      calcTmaxCmax ();
+      calcTmaxCmax (trickleCharge);
       if (trickleCharge) {
         G.vMax = (uint32_t)V_TRICKLE_MAX * Nvm.numCells; // Reduce vMax to trickle charge level
         Cli.xprintf ("Trickle c");
@@ -461,7 +471,7 @@ void loop (void) {
       // Maximum charge capacity is reached 
       if (G.c > G.cMax) {
         showRtParams (0, NULL); 
-        Cli.xprintf ("C_max "); Cli.xputs(Str.reached);
+        Cli.xprintf ("C_max"); Cli.xputs(Str.reached);
         G.state = STATE_FULL_E;
       }
       
