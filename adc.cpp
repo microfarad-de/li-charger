@@ -35,7 +35,7 @@ AdcClass ADConv;
 
 void AdcClass::initialize (AdcPrescaler_t prescaler, AdcReference_t reference, uint8_t numPins, uint8_t avgSamples) {
   this->reference = reference;
-  assert (numPins < ADC_NUM_PINS);
+  assert (numPins <= ADC_NUM_PINS);
   this->numPins = numPins;
   this->avgSamples = avgSamples;
   ADCSRA =  _BV (ADEN);   // turn ADC on
