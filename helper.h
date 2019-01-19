@@ -1,5 +1,5 @@
 /* 
- * Helper functions 
+ * Helper Functions 
  *
  * This source file is part of the Lithium-Ion Battery Charger Arduino firmware
  * found under http://www.github.com/microfarad-de/li-charger

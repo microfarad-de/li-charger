@@ -1,5 +1,5 @@
 /* 
- * Command-line interpreter
+ * Command-Line Interpreter
  * 
  * This source file is part of the Lithium-Ion Battery Charger Arduino firmware
  * found under http://www.github.com/microfarad-de/li-charger
@@ -28,7 +28,7 @@
 #define __Cli_H_
 
 
-#define CLI_NUM_CMD          9   // Number of cli commands
+#define CLI_NUM_CMD         10   // Number of cli commands
 #define CLI_NUM_ARG          3   // Number of cli arguments
 #define CLI_ARG_LEN          8   // Maximum argument length
 #define CLI_PRINTF_BUF_SIZE 40   // Size of the printf buffer

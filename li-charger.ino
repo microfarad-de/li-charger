@@ -37,6 +37,7 @@
 #include "cli.h"
 #include "adc.h"
 #include "helper.h"
+#include "trace.h"
 
 
 /*
@@ -76,15 +77,17 @@
 #define UPDATE_INTERVAL      50 // Interval in ms for updating the power output
 #define ADC_AVG_SAMPLES      16 // Number of ADC samples to be averaged
 #define SOC_LUT_SIZE          9 // Size of the state-of-charge lookup table
-
+#define TRACE_BUF_SIZE      240 // Trace buffer size
+#define TRACE_RESOLUTION  60000 // Trace timestamp resolution in ms
 
 
 
 
 /* 
- * LED object
+ * Objects
  */
 LedClass Led;
+TraceClass Trace;
 
 /*
  * State machine states
@@ -153,7 +156,6 @@ const struct {
 } Str;
 
 
-
 /*
  * Validate the settings
  * Called after reading or before writing EEPROM
@@ -173,7 +175,6 @@ void nvmValidate (void) {
 
   // Calculate the safe charging current
   G.iSafe = Nvm.iChrg / (uint16_t)I_SAFE_DIVIDER;
-
 }
 
 
@@ -263,6 +264,9 @@ void calcTmaxCmax (bool trickleCharge) {
     // Top-up 3% of C_full for every trickle charge cycle
     G.cMax = 36 * 3 * (uint32_t)Nvm.cFull + G.c;
   }
+  Trace.log ('%', soc);
+  Trace.log ('C', G.cMax / 3600);
+  Trace.log ('T', G.tMax / 60);
   
 }
 
@@ -284,15 +288,16 @@ void setup (void) {
   Cli.xputs ("");
   Cli.xprintf ("V %d.%d.%d\n", VERSION_MAJOR, VERSION_MINOR, VERSION_MAINT);
   Cli.xputs ("");
-  Cli.newCmd ("ncells", "set N_cells", numCellsSet);
-  Cli.newCmd ("cfull", "set C_full in mAh", cFullSet);
-  Cli.newCmd ("ichrg", "set I_chrg in mA", iChrgSet);
-  Cli.newCmd ("ifull", "set I_full in mA", iFullSet);
-  Cli.newCmd ("rshunt", "set R_shunt in mΩ", rShuntSet);
-  Cli.newCmd ("lut", "set SOC LUT (lut <idx> <mV>)", socLutSet);
-  Cli.newCmd ("c", "calibration params", showCalibration);
-  Cli.newCmd (".", "real-time params", showRtParams);
-  Cli.newCmd ("cal", "calibrate V1 & V2 (cal [v1|v2])", calibrate);
+  Cli.newCmd ("ncells", "N_cells", numCellsSet);
+  Cli.newCmd ("cfull", "C_full in mAh", cFullSet);
+  Cli.newCmd ("ichrg", "I_chrg in mA", iChrgSet);
+  Cli.newCmd ("ifull", "I_full in mA", iFullSet);
+  Cli.newCmd ("rshunt", "R_shunt in mΩ", rShuntSet);
+  Cli.newCmd ("lut", "SOC LUT (lut <idx> <mV>)", socLutSet);
+  Cli.newCmd ("c", "cal. params", showCalibration);
+  Cli.newCmd (".", "r/t params", showRtParams);
+  Cli.newCmd ("cal", "cal. V1 & V2 (cal [v1|v2])", calibrate);
+  Cli.newCmd ("t", "trace", traceDump);
   
   Cli.showHelp ();
 
@@ -307,6 +312,9 @@ void setup (void) {
 
   // Read the settngs from EEPROM and validate them
   nvmRead ();
+
+  // Initialize the trace buffer
+  Trace.initialize (sizeof(Nvm), TRACE_BUF_SIZE, TRACE_RESOLUTION);
 
   // Enable the watchdog
   wdt_enable (WDTO_1S);
@@ -325,9 +333,11 @@ void loop (void) {
   static uint32_t fullTs = 0;
   static uint32_t trickleTs = 0;
   static uint32_t resetTs = 0;
+  static uint16_t traceCount = 0;
   static bool iMinCalc = false;
   static bool safeCharge = true;
   static bool trickleCharge = false;
+  static bool traceEnable = false;
   uint32_t ts = millis ();
 
   // Reset the watchdog timer
@@ -342,11 +352,14 @@ void loop (void) {
   // Update the LED state
   Led.loopHandler ();
 
+  // Update the trace timestamp
+  if (traceEnable) Trace.loopHandler ();
+
   // Read the ADC channels
   adcRead ();
 
   // Force the error STATE if CRC error occurred
-  if (!G.crcOk && G.state != STATE_ERROR) Cli.xprintf ("CRC "), G.state = STATE_ERROR_E;
+  if (!G.crcOk && G.state != STATE_ERROR) Cli.xprintf ("CRC "), Trace.log ('E', 99), G.state = STATE_ERROR_E;
 
 
   // Main state machine
@@ -356,14 +369,16 @@ void loop (void) {
     // Initialization State
     case STATE_INIT_E:
       Led.blink (-1, 500, 1500);
-      trickleCharge = false; 
+      trickleCharge = false;
+      traceEnable = false;
+      Trace.reset ();
       G.vMax = (uint32_t)V_MAX * Nvm.numCells;
       G.vMin = (uint32_t)V_MIN * Nvm.numCells;
       chargeTs = ts;
       G.dutyCycle = 0;
       analogWrite (MOSFET_PIN, 0);
       Cli.xputs ("Waiting for battery\n");
-      G.state = STATE_INIT; 
+      G.state = STATE_INIT;
     case STATE_INIT:
       // Start charging if V stays within bounds during TIMEOUT_CHARGE
       if ( G.v < G.vMin || G.v > G.vMax ) chargeTs = ts;
@@ -386,7 +401,7 @@ void loop (void) {
       G.iMax = (uint32_t)G.iSafe * 1000;
       iMinCalc = false;
       safeCharge = true;
-      calcTmaxCmax (trickleCharge);
+      traceEnable = true;
       if (trickleCharge) {
         G.vMax = (uint32_t)V_TRICKLE_MAX * Nvm.numCells; // Reduce vMax to trickle charge level
         Cli.xprintf ("Trickle c");
@@ -396,6 +411,8 @@ void loop (void) {
         Cli.xprintf ("C");
       }
       Cli.xputs ("harging\n"); // No typo, just a trick to save memory
+      Trace.log ('*', G.vMax / 1000);
+      calcTmaxCmax (trickleCharge);
       G.state = STATE_CHARGE;
     case STATE_CHARGE:
 
@@ -411,7 +428,7 @@ void loop (void) {
           if (!safeCharge) iMinCalc = true;
         }
         else if ( ( G.v < G.vMax - (uint32_t)V_WINDOW * Nvm.numCells ) &&
-                  ( G.i     < G.iMax - (uint32_t)I_WINDOW ) ) {
+                  ( G.i < G.iMax - (uint32_t)I_WINDOW ) ) {
           if (G.dutyCycle < 255) G.dutyCycle++;
         }
 
@@ -420,9 +437,10 @@ void loop (void) {
       }
 
       // Set the charging current
-      if (G.v > (uint32_t)V_SAFE * Nvm.numCells) {
+      if (G.v > (uint32_t)V_SAFE * Nvm.numCells && safeCharge) {
         safeCharge = false;
         G.iMax = (uint32_t)Nvm.iChrg * 1000;
+        Trace.log ('I', G.iMax / 1000);
       }
 
       // Calculate the minimum allowed battery voltage
@@ -438,9 +456,10 @@ void loop (void) {
            !(G.i == 0 && G.dutyCycle > 0)               ) errorTs = ts;
       if (ts - errorTs > TIMEOUT_ERROR) {
         showRtParams (0, NULL);
-        if (G.v > (uint32_t)V_SURGE * Nvm.numCells) Cli.xprintf ("Overvolt ");
-        if (G.v < (uint32_t)G.vMin )                Cli.xprintf ("Undervolt ");
-        if (G.i == 0 && G.dutyCycle > 0)            Cli.xprintf ("Open circuit ");
+        if (G.v > (uint32_t)V_SURGE * Nvm.numCells) Cli.xprintf ("Overvolt "), Trace.log ('E', 1);
+        if (G.v < (uint32_t)G.vMin )                Cli.xprintf ("Undervolt "), Trace.log ('E', 2);
+        if (G.i == 0 && G.dutyCycle > 0)            Cli.xprintf ("Open circuit "), Trace.log ('E', 3);
+        Trace.log ('v', G.v / 1000);
         G.state = STATE_ERROR_E;
       }
 
@@ -454,8 +473,8 @@ void loop (void) {
            ( G.i < G.iMin + (uint32_t)I_DELTA) ) fullTs = ts;
       if (ts - fullTs > TIMEOUT_FULL) {
         showRtParams (0, NULL);
-        if (G.i < (uint32_t)Nvm.iFull * 1000) Cli.xprintf("I_full"); 
-        if (G.i > G.iMin + (uint32_t)I_DELTA) Cli.xprintf("I_delta");
+        if (G.i < (uint32_t)Nvm.iFull * 1000) Cli.xprintf("I_full"), Trace.log ('F', 1); 
+        if (G.i > G.iMin + (uint32_t)I_DELTA) Cli.xprintf("I_delta"), Trace.log ('F', 2);
         Cli.xputs(Str.reached);
         G.state = STATE_FULL_E; 
       }
@@ -465,6 +484,12 @@ void loop (void) {
         tickTs += 1000;
         G.t++;
         G.c += (G.i / 1000);
+        traceCount++;
+        if (traceCount >= 120) {
+          Trace.log ('v', G.v / 1000);
+          Trace.log ('i', G.i / 1000);
+          traceCount = 0;
+        }
       }
 
       // End of Charge Detection:
@@ -472,6 +497,8 @@ void loop (void) {
       if (G.c > G.cMax) {
         showRtParams (0, NULL); 
         Cli.xprintf ("C_max"); Cli.xputs(Str.reached);
+        Trace.log ('F', 3);
+        Trace.log ('c', G.c / 3600);
         G.state = STATE_FULL_E;
       }
       
@@ -480,6 +507,8 @@ void loop (void) {
       if (G.t > G.tMax) {
         showRtParams (0, NULL);
         Cli.xprintf ("T_max"); Cli.xputs(Str.reached);
+        Trace.log ('F', 4);
+        Trace.log ('t', G.t / 60);
         G.state = STATE_FULL_E;  
       }
       break;
@@ -773,5 +802,14 @@ int calibrate (int argc, char **argv) {
     Cli.xprintf ("V1_ref = %lu mV\n", (V1_REF * Nvm.numCells) / 1000);
     Cli.xprintf ("V2_ref = %lu mV\n\n", V2_REF / 1000);
   }
+  return 0;
+}
+
+
+/*
+ * CLI command for dumping the trace buffer
+ */
+int traceDump (int argc, char **argv) {
+  Trace.dump ();
   return 0;
 }
