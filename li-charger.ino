@@ -229,39 +229,39 @@ void calcTmaxCmax (bool trickleCharge) {
   
   /* Calculate the maximum allowed charge duration
      Assume linear increase with capacity intil 80% of charge (constant current phase), 
-     then add a constant duration of 30 min for the remaining top-off charge (constant voltage phase).
-     Account of safety charge with reduced current - add 1 min per 100 mV below the safety voltage 
+     then add a constant duration of 45 min for the remaining top-off charge (constant voltage phase).
+     Account for safety charge with reduced current - add 1 min per 100 mV below the safety voltage 
      threshold as T_safe.
-     T_max (s) = 3600 * (C_full / I_chrg) * (80 - SoC) / 100 + 30 * 60s + T_safe
+     T_max (s) = 3600 * (C_full / I_chrg) * (80 - SoC) / 100 + 45 * 60s + T_safe
      If V < V_safe * N_cells: T_safe (s) = (V_safe * N_cells - V) * 1 * 60s / 100000
      Else: T_safe (s) = 0
   */
   if (!trickleCharge) {
     if (G.v < (uint32_t)V_SAFE * Nvm.numCells) {  
       // 6 / 10000 = 1 * 60 / 100000
-      tSafe = (((uint32_t)V_SAFE * Nvm.numCells - G.v) * 6) / 10000;
+      tSafe = ( ( (uint32_t)V_SAFE * Nvm.numCells - G.v ) * 6 ) / 10000;
     }
     else {
       tSafe = 0;
     }
-    // 36 = 3600 / 100; 1800 = 30 * 60
-    G.tMax = ( 36 * (90 - soc) * (uint32_t)Nvm.cFull ) / (uint32_t)Nvm.iChrg + 1800 + tSafe;
+    // 36 = 3600 / 100
+    G.tMax = ( 36 * (90 - soc) * (uint32_t)Nvm.cFull ) / (uint32_t)Nvm.iChrg + 45 * 60 + tSafe;
   }
   else {
-    // Allow for 15 charging minutes in every trickle charge cycle
-    G.tMax = 15 * 60 + G.t;
+    // Allow for 20 charging minutes in every trickle charge cycle
+    G.tMax = 20 * 60 + G.t;
   }
 
   /* Calculate the maximum allowed charge capacity
-     C_max (mAs) = 3600 * C_full * 1.11 * (100 - SoC) / 100
-     Equals remaining capacity + 11%: 40 = 3600 * 1.11 / 100
+     C_max (mAs) = 3600 * C_full * 1.22 * (100 - SoC) / 100
+     Equals remaining capacity + 22%: 44 = 3600 * 1.22 / 100
   */
   if (!trickleCharge) {
-    G.cMax = 40 * (100 - soc) * (uint32_t)Nvm.cFull;
+    G.cMax = 44 * (100 - soc) * (uint32_t)Nvm.cFull;
   }
   else {
-    // Top-up 1% of C_full for every trickle charge cycle
-    G.cMax = 36 * 1 * (uint32_t)Nvm.cFull + G.c;
+    // Top-up 3% of C_full for every trickle charge cycle
+    G.cMax = 36 * 3 * (uint32_t)Nvm.cFull + G.c;
   }
   
 }
