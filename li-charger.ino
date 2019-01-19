@@ -265,6 +265,7 @@ void calcTmaxCmax (bool trickleCharge) {
     G.cMax = 36 * 3 * (uint32_t)Nvm.cFull + G.c;
   }
   Trace.log ('%', soc);
+  Trace.log ('v', G.v / 1000);
   Trace.log ('C', G.cMax / 3600);
   Trace.log ('T', G.tMax / 60);
   
