@@ -72,7 +72,7 @@
 #define TIMEOUT_ERROR       150 // Time duration in ms during which i or V shall be out of bounds in order to trigger an error condition
 #define TIMEOUT_FULL      20000 // Time duration in ms during which I_full shall not be exceeded in order to assume that battery is full
 #define TIMEOUT_TRICKLE    5000 // Time duration in ms during which V shall be smaller than V_TRICKLE_MAX before starting a trickle charge
-#define TIMEOUT_ERR_RST    5000 // Time duration in ms during which V shall be 0 before going back from STATE_ERROR to STATE_INIT
+#define TIMEOUT_ERR_RST    2000 // Time duration in ms during which V shall be 0 before going back from STATE_ERROR to STATE_INIT
 #define TIMEOUT_FULL_RST   2000 // Time duration in ms during which V shall be 0 before going back from STATE_FULL to STATE_INIT
 #define TIMEOUT_UPDATE_UP    50 // Time interval in ms for increasing the power output by one increment
 #define TIMEOUT_UPDATE_DN     1 // Time interval in ms for decreasing the power output by one increment
