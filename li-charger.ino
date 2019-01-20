@@ -59,7 +59,7 @@
 #define V_MAX           4190000 // 4.19 V - Maximum allowed battery voltage per cell in µV
 #define V_MIN           2500000 // 2.50 V - Minimum allowed battery voltage per cell in µV
 #define V_START          500000 // 0.50 V - Minimum allowed battery voltage per cell in µV for starting a charge
-                                //          Use very low value for overcoming BMS protection and deep-dicharged NiCd cells
+                                //          Use very low value for overcoming BMS protection and deep-dicharged NiCd cells (makeshift NiCd support)
 #define V_SAFE          2800000 // 2.80 V - Battery voltage threshold per cell in µV for charging at full current
 #define V_WINDOW           2000 // 0.002 V - Do not regulate voltage when within +/- this window (per cell) in µV
 #define V_DELTA           30000 // 0.03 V - Maximum momentary battery voltage drop per cell in µV
@@ -74,8 +74,9 @@
 #define TIMEOUT_TRICKLE    5000 // Time duration in ms during which V shall be smaller than V_TRICKLE_MAX before starting a trickle charge
 #define TIMEOUT_ERR_RST    5000 // Time duration in ms during which V shall be 0 before going back from STATE_ERROR to STATE_INIT
 #define TIMEOUT_FULL_RST   2000 // Time duration in ms during which V shall be 0 before going back from STATE_FULL to STATE_INIT
-#define TIMEOUT_UPDATE_UP   100 // Time interval in ms for increasing the power output by one increment
-#define TIMEOUT_UPDATE_DN     5 // Time interval in ms for decreasing the power output by one increment
+#define TIMEOUT_UPDATE_UP    50 // Time interval in ms for increasing the power output by one increment
+#define TIMEOUT_UPDATE_DN     1 // Time interval in ms for decreasing the power output by one increment
+#define PWM_OC_DETECT_THR   150 // PWM value threshold - detect open circuit if I = 0 while PWM exceeds this value
 #define ADC_AVG_SAMPLES      16 // Number of ADC samples to be averaged
 #define SOC_LUT_SIZE          9 // Size of the state-of-charge lookup table
 #define TRACE_BUF_SIZE      240 // Trace buffer size
@@ -276,14 +277,14 @@ void setup (void) {
   Cli.xputs ("");
   Cli.xprintf ("V %d.%d.%d\n", VERSION_MAJOR, VERSION_MINOR, VERSION_MAINT);
   Cli.xputs ("");
-  Cli.newCmd ("ncells", "N_cells", numCellsSet);
-  Cli.newCmd ("cfull", "C_full in mAh", cFullSet);
-  Cli.newCmd ("ichrg", "I_chrg in mA", iChrgSet);
-  Cli.newCmd ("ifull", "I_full in mA", iFullSet);
-  Cli.newCmd ("rshunt", "R_shunt in mΩ", rShuntSet);
-  Cli.newCmd ("lut", "SOC LUT (lut <idx> <mV>)", socLutSet);
-  Cli.newCmd ("c", "cal. params", showCalibration);
-  Cli.newCmd (".", "r/t params", showRtParams);
+  Cli.newCmd ("ncells", "set N_cells", numCellsSet);
+  Cli.newCmd ("cfull", "set C_full in mAh", cFullSet);
+  Cli.newCmd ("ichrg", "set I_chrg in mA", iChrgSet);
+  Cli.newCmd ("ifull", "set I_full in mA", iFullSet);
+  Cli.newCmd ("rshunt", "set R_shunt in mΩ", rShuntSet);
+  Cli.newCmd ("lut", "set LUT (lut <idx> <mV>)", socLutSet);
+  Cli.newCmd ("c", "show cal. params", showCalibration);
+  Cli.newCmd (".", "show r/t params", showRtParams);
   Cli.newCmd ("cal", "cal. V1 & V2 (cal [v1|v2])", calibrate);
   Cli.newCmd ("t", "trace", traceDump);
   
@@ -425,16 +426,6 @@ void loop (void) {
         analogWrite (MOSFET_PIN, G.dutyCycle);
       }
 
-      // Trace sudden current increase event (caused by BMS)
-      if (G.i > G.iMax + 100000 && !traceSurgeFlag) {
-        Trace.log ('v', G.v / 1000);
-        Trace.log ('i', G.i / 1000);
-        traceSurgeFlag = true;
-      }
-      else if (G.i <= G.iMax) {
-        traceSurgeFlag = false;
-      }
-
       // Set the charging current
       if (G.v > (uint32_t)V_SAFE * Nvm.numCells && safeCharge) {
         safeCharge = false;
@@ -446,12 +437,12 @@ void loop (void) {
       // Signal an error if V stays out of bounds or open circuit condition occurs during TIMEOUT_ERROR
       if ( (G.v > (uint32_t)V_MIN * Nvm.numCells || safeCharge) && 
            G.v < (uint32_t)V_SURGE * Nvm.numCells  && 
-           !( G.i == 0 && G.dutyCycle > 150 ) ) errorTs = ts;
+           !( G.i == 0 && G.dutyCycle > PWM_OC_DETECT_THR ) ) errorTs = ts;
       if (ts - errorTs > TIMEOUT_ERROR) {
         showRtParams (0, NULL);
-        if (G.v > (uint32_t)V_SURGE * Nvm.numCells) Cli.xprintf ("Overvolt "), Trace.log ('E', 1);
-        if (G.v < (uint32_t)V_MIN * Nvm.numCells  ) Cli.xprintf ("Undervolt "), Trace.log ('E', 2);
-        if (G.i == 0 && G.dutyCycle > 150)          Cli.xprintf ("Open circuit "), Trace.log ('E', 3);
+        if (G.v > (uint32_t)V_SURGE * Nvm.numCells)       Cli.xprintf ("Overvolt "), Trace.log ('E', 1);
+        if (G.v < (uint32_t)V_MIN * Nvm.numCells  )       Cli.xprintf ("Undervolt "), Trace.log ('E', 2);
+        if (G.i == 0 && G.dutyCycle > PWM_OC_DETECT_THR)  Cli.xprintf ("Open circuit "), Trace.log ('E', 3);
         G.state = STATE_ERROR_E;
       }
 
