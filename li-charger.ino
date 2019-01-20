@@ -57,9 +57,10 @@
 #define V2_REF          1000000 // 1.00 V - Calibrate V2 against this reference voltage in µV
 #define V_SURGE         4250000 // 4.25 V - maximum allowed surge voltage threshold per cell in µV
 #define V_MAX           4190000 // 4.19 V - Maximum allowed battery voltage per cell in µV
-#define V_MIN            500000 // 0.50 V - Minimum allowed battery voltage per cell in µV for starting a charge
-                                //          NiCd batteries: use very low value for tolerating deep-dicharged NiCd cells
-#define V_SAFE          2600000 // 2.60 V - Battery voltage threshold per cell in µV for charging at full current
+#define V_MIN           2500000 // 2.50 V - Minimum allowed battery voltage per cell in µV
+#define V_START          500000 // 0.50 V - Minimum allowed battery voltage per cell in µV for starting a charge
+                                //          Use very low value for overcoming BMS protection and deep-dicharged NiCd cells
+#define V_SAFE          2800000 // 2.80 V - Battery voltage threshold per cell in µV for charging at full current
 #define V_WINDOW           2000 // 0.002 V - Do not regulate voltage when within +/- this window (per cell) in µV
 #define V_DELTA           30000 // 0.03 V - Maximum momentary battery voltage drop per cell in µV
 #define V_TRICKLE_START 4100000 // 4.10 V - Trickle charge threshold voltage in µV
@@ -104,7 +105,6 @@ struct {
   uint32_t v2;           // V2 - Voltage at the battery '-' terminal (shunt) in µV
   uint32_t v;            // V  - Battery voltage = V1 - V2 in µV
   uint32_t vMax;         // Maximum allowed battery voltage during charging in µV
-  uint32_t vMin;         // Minimum allowed battery voltage during charging in µV
   uint32_t i;            // I - Charging current in µA
   uint32_t iMax;         // I_max - Maximum charging current in µA
   uint32_t iMin;         // I_min - historically minimum charge current in µA
@@ -188,7 +188,7 @@ void nvmRead (void) {
   nvmValidate ();
 
   // Calculate and check CRC checksum
-  crc = crcCalc ((uint8_t*)&Nvm, sizeof (Nvm) - 4);
+  crc = crcCalc ((uint8_t*)&Nvm, sizeof (Nvm) - sizeof (Nvm.crc) );
   Cli.xprintf (Str.CRC, crc);
 
   if (crc != Nvm.crc) G.crcOk = false;
@@ -201,7 +201,7 @@ void nvmRead (void) {
  */
 void nvmWrite (void) {
   nvmValidate (); 
-  Nvm.crc = crcCalc ((uint8_t*)&Nvm, sizeof (Nvm) - 4);
+  Nvm.crc = crcCalc ((uint8_t*)&Nvm, sizeof (Nvm) - sizeof (Nvm.crc) );
   //Cli.xprintf (Str.CRC, Nvm.crc);
   eepromWrite (0x0, (uint8_t*)&Nvm, sizeof (Nvm));
 }
@@ -214,7 +214,6 @@ void nvmWrite (void) {
  */
 void calcTmaxCmax (bool trickleCharge) {
   uint8_t i, soc;
-  uint32_t tSafe;
   
   // Detect charge state using the lookup table
   for (i = 0; i < SOC_LUT_SIZE; i++) {
@@ -231,22 +230,11 @@ void calcTmaxCmax (bool trickleCharge) {
   /* Calculate the maximum allowed charge duration
      Assume linear increase with capacity intil 80% of charge (constant current phase), 
      then add a constant duration of 45 min for the remaining top-off charge (constant voltage phase).
-     Account for safety charge with reduced current - add 1 min per 100 mV below the safety voltage 
-     threshold as T_safe.
      T_max (s) = 3600 * (C_full / I_chrg) * (80 - SoC) / 100 + 45 * 60s + T_safe
-     If V < V_safe * N_cells: T_safe (s) = (V_safe * N_cells - V) * 1 * 60s / 100000
-     Else: T_safe (s) = 0
   */
   if (!trickleCharge) {
-    if (G.v < (uint32_t)V_SAFE * Nvm.numCells) {  
-      // 6 / 10000 = 1 * 60 / 100000
-      tSafe = ( ( (uint32_t)V_SAFE * Nvm.numCells - G.v ) * 6 ) / 10000;
-    }
-    else {
-      tSafe = 0;
-    }
     // 36 = 3600 / 100
-    G.tMax = ( 36 * (90 - soc) * (uint32_t)Nvm.cFull ) / (uint32_t)Nvm.iChrg + 45 * 60 + tSafe;
+    G.tMax = ( 36 * (90 - soc) * (uint32_t)Nvm.cFull ) / (uint32_t)Nvm.iChrg + 45 * 60;
   }
   else {
     // Allow for 20 charging minutes in every trickle charge cycle
@@ -254,11 +242,11 @@ void calcTmaxCmax (bool trickleCharge) {
   }
 
   /* Calculate the maximum allowed charge capacity
-     C_max (mAs) = 3600 * C_full * 1.22 * (100 - SoC) / 100
-     Equals remaining capacity + 22%: 44 = 3600 * 1.22 / 100
+     C_max (mAs) = 3600 * C_full * 1.31 * (100 - SoC) / 100
+     Equals remaining capacity + 31%: 47 = 3600 * 1.31 / 100
   */
   if (!trickleCharge) {
-    G.cMax = 44 * (100 - soc) * (uint32_t)Nvm.cFull;
+    G.cMax = 47 * (100 - soc) * (uint32_t)Nvm.cFull;
   }
   else {
     // Top-up 3% of C_full for every trickle charge cycle
@@ -374,7 +362,6 @@ void loop (void) {
       traceEnable = false;
       Trace.reset ();
       G.vMax = (uint32_t)V_MAX * Nvm.numCells;
-      G.vMin = (uint32_t)V_MIN * Nvm.numCells;
       chargeTs = ts;
       G.dutyCycle = 0;
       analogWrite (MOSFET_PIN, 0);
@@ -382,7 +369,7 @@ void loop (void) {
       G.state = STATE_INIT;
     case STATE_INIT:
       // Start charging if V stays within bounds during TIMEOUT_CHARGE
-      if ( G.v < G.vMin || G.v > G.vMax ) chargeTs = ts;
+      if ( G.v < (uint32_t)V_START * Nvm.numCells || G.v > G.vMax ) chargeTs = ts;
       if (ts - chargeTs > TIMEOUT_CHARGE) {
         G.c = 0;
         G.t = 0;
@@ -397,12 +384,12 @@ void loop (void) {
       errorTs = ts;
       fullTs = ts;
       tickTs = ts;
-      G.vMin = (uint32_t)V_MIN * Nvm.numCells;
       G.iMin = (uint32_t)Nvm.iChrg * 1000;
       G.iMax = (uint32_t)G.iSafe * 1000;
       iMinCalc = false;
       safeCharge = true;
       traceEnable = true;
+      traceCount = 0;
       if (trickleCharge) {
         G.vMax = (uint32_t)V_TRICKLE_MAX * Nvm.numCells; // Reduce vMax to trickle charge level
         Cli.xprintf ("Trickle c");
@@ -414,6 +401,7 @@ void loop (void) {
       Cli.xputs ("harging\n"); // No typo, just a trick to save memory
       Trace.log ('*', G.vMax / 1000);
       calcTmaxCmax (trickleCharge);
+      if (G.v <= (uint32_t)V_SAFE * Nvm.numCells) Trace.log ('S', G.iMax / 1000);
       G.state = STATE_CHARGE;
     case STATE_CHARGE:
 
@@ -444,23 +432,16 @@ void loop (void) {
         Trace.log ('I', G.iMax / 1000);
       }
 
-      // Calculate the minimum allowed battery voltage
-      if (G.vMin < G.v - (uint32_t)V_DELTA * Nvm.numCells) {
-        if (G.v < G.vMax) G.vMin = G.v - (uint32_t)V_DELTA * Nvm.numCells;
-        else              G.vMin = G.vMax  - (uint32_t)V_DELTA * Nvm.numCells;
-      }
-
       // Error Detection:
       // Signal an error if V stays out of bounds or open circuit condition occurs during TIMEOUT_ERROR
-      if ( G.v > (uint32_t)G.vMin && 
-           G.v < (uint32_t)V_SURGE * Nvm.numCells && 
-           !(G.i == 0 && G.dutyCycle > 0)               ) errorTs = ts;
+      if ( (G.v > (uint32_t)V_MIN * Nvm.numCells || safeCharge) && 
+           G.v < (uint32_t)V_SURGE * Nvm.numCells  && 
+           !(G.i == 0 && G.dutyCycle > 150) ) errorTs = ts;
       if (ts - errorTs > TIMEOUT_ERROR) {
         showRtParams (0, NULL);
         if (G.v > (uint32_t)V_SURGE * Nvm.numCells) Cli.xprintf ("Overvolt "), Trace.log ('E', 1);
-        if (G.v < (uint32_t)G.vMin )                Cli.xprintf ("Undervolt "), Trace.log ('E', 2);
-        if (G.i == 0 && G.dutyCycle > 0)            Cli.xprintf ("Open circuit "), Trace.log ('E', 3);
-        Trace.log ('v', G.v / 1000);
+        if (G.v < (uint32_t)V_MIN * Nvm.numCells  ) Cli.xprintf ("Undervolt "), Trace.log ('E', 2);
+        if (G.i == 0 && G.dutyCycle > 150)          Cli.xprintf ("Open circuit "), Trace.log ('E', 3);
         G.state = STATE_ERROR_E;
       }
 
@@ -468,10 +449,10 @@ void loop (void) {
       if (iMinCalc && G.i < G.iMin) G.iMin = G.i;
 
       // End of Charge Detection:
-      // Report battery full if I_full has not been exceeded during TIMEOUT_FULL
-      // NiCd batteries: charge current increase of more than I_delta shall signal the end of charge
-      if ( ( G.i > (uint32_t)Nvm.iFull * 1000 || G.iMax <= (uint32_t)Nvm.iFull * 1000 ) && 
-           ( G.i < G.iMin + (uint32_t)I_DELTA) ) fullTs = ts;
+      // Report battery full if I_full has not been exceeded during TIMEOUT_FULL (ignore during safety charging)
+      // NiCd batteries: charge current increase of more than I_delta shall signal the end of charge (ignore during first 5 min)
+      if ( ( G.i > (uint32_t)Nvm.iFull * 1000 || safeCharge ) && 
+           ( G.i < G.iMin + (uint32_t)I_DELTA || G.t < 300) ) fullTs = ts;
       if (ts - fullTs > TIMEOUT_FULL) {
         showRtParams (0, NULL);
         if (G.i < (uint32_t)Nvm.iFull * 1000) Cli.xprintf("I_full"), Trace.log ('F', 1); 
@@ -499,7 +480,6 @@ void loop (void) {
         showRtParams (0, NULL); 
         Cli.xprintf ("C_max"); Cli.xputs(Str.reached);
         Trace.log ('F', 3);
-        Trace.log ('c', G.c / 3600);
         G.state = STATE_FULL_E;
       }
       
@@ -509,7 +489,6 @@ void loop (void) {
         showRtParams (0, NULL);
         Cli.xprintf ("T_max"); Cli.xputs(Str.reached);
         Trace.log ('F', 4);
-        Trace.log ('t', G.t / 60);
         G.state = STATE_FULL_E;  
       }
       break;
@@ -524,6 +503,10 @@ void loop (void) {
       G.dutyCycle = 0;
       analogWrite (MOSFET_PIN, 0);
       Cli.xputs ("Battery full\n");
+      Trace.log ('c', G.c / 3600);
+      Trace.log ('t', G.t / 60);
+      Trace.log ('v', G.v / 1000);
+      Trace.log ('i', G.i / 1000);
       G.state = STATE_FULL;     
     case STATE_FULL:
       // Start a trickle charging cycle if V_TRICKLE_START has not been exceeded during TIMEOUT_TRICKLE
@@ -546,6 +529,10 @@ void loop (void) {
       G.dutyCycle = 0;
       analogWrite (MOSFET_PIN, 0);
       Cli.xputs ("ERROR\n");
+      Trace.log ('c', G.c / 3600);
+      Trace.log ('t', G.t / 60);
+      Trace.log ('v', G.v / 1000);
+      Trace.log ('i', G.i / 1000);
       G.state = STATE_ERROR;   
     case STATE_ERROR:
       // Go to STATE_INIT if V stayed 0 during TIMEOUT_RESET
@@ -637,7 +624,6 @@ int showRtParams (int argc, char **argv) {
   Cli.xprintf ("I_min  = %lu mA\n", G.iMin / 1000);
   Cli.xprintf ("V      = %lu mV\n", G.v / 1000);
   Cli.xprintf ("V_max  = %lu mV\n", G.vMax / 1000);
-  Cli.xprintf ("V_min  = %lu mV\n", G.vMin / 1000);
   Cli.xprintf ("PWM    = %u\n", G.dutyCycle);
   Cli.xprintf ("V1_raw = %u\n", G.v1Raw);
   Cli.xprintf ("V2_raw = %u\n", G.v2Raw);
