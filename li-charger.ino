@@ -23,11 +23,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>. 
  * 
- * Version: 1.3.0
+ * Version: 2.0.0
  * Date:    January 2019
  */
-#define VERSION_MAJOR 1  // major version
-#define VERSION_MINOR 3  // minor version
+#define VERSION_MAJOR 2  // major version
+#define VERSION_MINOR 0  // minor version
 #define VERSION_MAINT 0  // maintenance version
 
 #include <avr/sleep.h>
@@ -66,7 +66,6 @@
 #define V_TRICKLE_START 4100000 // 4.10 V - Trickle charge threshold voltage in µV
 #define V_TRICKLE_MAX   4150000 // 4.15 V - Trickle charge maximum voltage in µV
 #define I_WINDOW          15000 // 0.015 A - Do not regulate current when within +/- this window in µA
-#define I_DELTA           50000 // 0.05 A - NiCd batteries: Current increase in µA to detect end of charge
 #define I_DIVIDER           128 // Divider constant used for current calculation
 #define I_SAFE_DIVIDER       20 // Divide I_chrg by this value to calculate I_safe, which is the reduced safety charging current
 #define TIMEOUT_CHARGE     2000 // Time duration in ms during which V shall be between V_MIN and V_MAX before starting to charge
@@ -75,7 +74,8 @@
 #define TIMEOUT_TRICKLE    5000 // Time duration in ms during which V shall be smaller than V_TRICKLE_MAX before starting a trickle charge
 #define TIMEOUT_ERR_RST    5000 // Time duration in ms during which V shall be 0 before going back from STATE_ERROR to STATE_INIT
 #define TIMEOUT_FULL_RST   2000 // Time duration in ms during which V shall be 0 before going back from STATE_FULL to STATE_INIT
-#define UPDATE_INTERVAL      50 // Interval in ms for updating the power output
+#define TIMEOUT_UPDATE_UP   100 // Time interval in ms for increasing the power output by one increment
+#define TIMEOUT_UPDATE_DN     5 // Time interval in ms for decreasing the power output by one increment
 #define ADC_AVG_SAMPLES      16 // Number of ADC samples to be averaged
 #define SOC_LUT_SIZE          9 // Size of the state-of-charge lookup table
 #define TRACE_BUF_SIZE      240 // Trace buffer size
@@ -107,12 +107,12 @@ struct {
   uint32_t vMax;         // Maximum allowed battery voltage during charging in µV
   uint32_t i;            // I - Charging current in µA
   uint32_t iMax;         // I_max - Maximum charging current in µA
-  uint32_t iMin;         // I_min - historically minimum charge current in µA
   uint32_t tMax;         // T_max - Maximum allowed charge time duration in s
   uint32_t iCalibration; // Calibration value for calculating i
   uint32_t c = 0;        // Total charged capacity in mAs
   uint32_t cMax;         // C_max - Maximum allowed charge capacity in mAs 
   uint32_t t = 0;        // Charge duration in s
+  uint32_t tUpdate;      // Regulation loop update interval in ms
   uint16_t v1Raw;        // Raw ADC value of V1
   uint16_t v2Raw;        // Raw ADC value of V2
   uint16_t iSafe;        // I_safe - Charging current in mA when the battery voltage is below V_SAFE
@@ -254,9 +254,8 @@ void calcTmaxCmax (bool trickleCharge) {
   }
   Trace.log ('%', soc);
   Trace.log ('v', G.v / 1000);
-  Trace.log ('C', G.cMax / 3600);
   Trace.log ('T', G.tMax / 60);
-  
+  Trace.log ('C', G.cMax / 3600);  
 }
 
 
@@ -323,7 +322,7 @@ void loop (void) {
   static uint32_t trickleTs = 0;
   static uint32_t resetTs = 0;
   static uint16_t traceCount = 0;
-  static bool iMinCalc = false;
+  static bool traceSurgeFlag = false;
   static bool safeCharge = true;
   static bool trickleCharge = false;
   static bool traceEnable = false;
@@ -384,9 +383,7 @@ void loop (void) {
       errorTs = ts;
       fullTs = ts;
       tickTs = ts;
-      G.iMin = (uint32_t)Nvm.iChrg * 1000;
       G.iMax = (uint32_t)G.iSafe * 1000;
-      iMinCalc = false;
       safeCharge = true;
       traceEnable = true;
       traceCount = 0;
@@ -405,16 +402,19 @@ void loop (void) {
       G.state = STATE_CHARGE;
     case STATE_CHARGE:
 
+      // Voltage and current must be slowly increased and quickly decreased
+      if (G.v > G.vMax || G.i > G.iMax) G.tUpdate = (uint32_t)TIMEOUT_UPDATE_DN;
+      else                              G.tUpdate = (uint32_t)TIMEOUT_UPDATE_UP;
+
       // CC-CV Regulation:
       // Run the regulation routine at the preset interval
-      if (ts - updateTs > UPDATE_INTERVAL) {
+      if (ts - updateTs > G.tUpdate) {
         updateTs = ts;
 
         // Regulate voltage and current with the CC-CV algorithm
         if ( ( G.v > G.vMax + (uint32_t)V_WINDOW * Nvm.numCells ) ||
              ( G.i > G.iMax + (uint32_t)I_WINDOW ) ) {
           if (G.dutyCycle > 0) G.dutyCycle--;
-          if (!safeCharge) iMinCalc = true;
         }
         else if ( ( G.v < G.vMax - (uint32_t)V_WINDOW * Nvm.numCells ) &&
                   ( G.i < G.iMax - (uint32_t)I_WINDOW ) ) {
@@ -423,6 +423,16 @@ void loop (void) {
 
         // Update the PWM duty cycle
         analogWrite (MOSFET_PIN, G.dutyCycle);
+      }
+
+      // Trace sudden current increase event (caused by BMS)
+      if (G.i > G.iMax + 100000 && !traceSurgeFlag) {
+        Trace.log ('v', G.v / 1000);
+        Trace.log ('i', G.i / 1000);
+        traceSurgeFlag = true;
+      }
+      else if (G.i <= G.iMax) {
+        traceSurgeFlag = false;
       }
 
       // Set the charging current
@@ -436,7 +446,7 @@ void loop (void) {
       // Signal an error if V stays out of bounds or open circuit condition occurs during TIMEOUT_ERROR
       if ( (G.v > (uint32_t)V_MIN * Nvm.numCells || safeCharge) && 
            G.v < (uint32_t)V_SURGE * Nvm.numCells  && 
-           !(G.i == 0 && G.dutyCycle > 150) ) errorTs = ts;
+           !( G.i == 0 && G.dutyCycle > 150 ) ) errorTs = ts;
       if (ts - errorTs > TIMEOUT_ERROR) {
         showRtParams (0, NULL);
         if (G.v > (uint32_t)V_SURGE * Nvm.numCells) Cli.xprintf ("Overvolt "), Trace.log ('E', 1);
@@ -445,19 +455,15 @@ void loop (void) {
         G.state = STATE_ERROR_E;
       }
 
-      // Calculate historically minimum charge current
-      if (iMinCalc && G.i < G.iMin) G.iMin = G.i;
 
       // End of Charge Detection:
       // Report battery full if I_full has not been exceeded during TIMEOUT_FULL (ignore during safety charging)
-      // NiCd batteries: charge current increase of more than I_delta shall signal the end of charge (ignore during first 5 min)
-      if ( ( G.i > (uint32_t)Nvm.iFull * 1000 || safeCharge ) && 
-           ( G.i < G.iMin + (uint32_t)I_DELTA || G.t < 300) ) fullTs = ts;
+      if ( G.i > (uint32_t)Nvm.iFull * 1000 || safeCharge ) fullTs = ts;
       if (ts - fullTs > TIMEOUT_FULL) {
         showRtParams (0, NULL);
-        if (G.i < (uint32_t)Nvm.iFull * 1000) Cli.xprintf("I_full"), Trace.log ('F', 1); 
-        if (G.i > G.iMin + (uint32_t)I_DELTA) Cli.xprintf("I_delta"), Trace.log ('F', 2);
+        Cli.xprintf("I_full"); 
         Cli.xputs(Str.reached);
+        Trace.log ('F', 1);
         G.state = STATE_FULL_E; 
       }
 
@@ -479,7 +485,7 @@ void loop (void) {
       if (G.c > G.cMax) {
         showRtParams (0, NULL); 
         Cli.xprintf ("C_max"); Cli.xputs(Str.reached);
-        Trace.log ('F', 3);
+        Trace.log ('F', 2);
         G.state = STATE_FULL_E;
       }
       
@@ -488,7 +494,7 @@ void loop (void) {
       if (G.t > G.tMax) {
         showRtParams (0, NULL);
         Cli.xprintf ("T_max"); Cli.xputs(Str.reached);
-        Trace.log ('F', 4);
+        Trace.log ('F', 3);
         G.state = STATE_FULL_E;  
       }
       break;
@@ -503,8 +509,8 @@ void loop (void) {
       G.dutyCycle = 0;
       analogWrite (MOSFET_PIN, 0);
       Cli.xputs ("Battery full\n");
-      Trace.log ('c', G.c / 3600);
       Trace.log ('t', G.t / 60);
+      Trace.log ('c', G.c / 3600);
       Trace.log ('v', G.v / 1000);
       Trace.log ('i', G.i / 1000);
       G.state = STATE_FULL;     
@@ -529,8 +535,8 @@ void loop (void) {
       G.dutyCycle = 0;
       analogWrite (MOSFET_PIN, 0);
       Cli.xputs ("ERROR\n");
-      Trace.log ('c', G.c / 3600);
       Trace.log ('t', G.t / 60);
+      Trace.log ('c', G.c / 3600);
       Trace.log ('v', G.v / 1000);
       Trace.log ('i', G.i / 1000);
       G.state = STATE_ERROR;   
@@ -616,14 +622,13 @@ int showRtParams (int argc, char **argv) {
   uint32_t min = G.t / 60 - (hour * 60);
   uint32_t sec = G.t - (hour * 3600) - (min * 60);
   Cli.xprintf ("T      = %02u:%02u:%02u\n", (uint8_t)hour, (uint8_t)min, (uint8_t)sec); 
-  Cli.xprintf ("T_max  = %lu min\n", G.tMax / 60);
   Cli.xprintf ("C      = %lu mAh\n", G.c / 3600);
-  Cli.xprintf ("C_max  = %lu mAh\n", G.cMax / 3600);
-  Cli.xprintf ("I      = %lu mA\n", G.i / 1000);
-  Cli.xprintf ("I_max  = %lu mA\n", G.iMax / 1000);  
-  Cli.xprintf ("I_min  = %lu mA\n", G.iMin / 1000);
   Cli.xprintf ("V      = %lu mV\n", G.v / 1000);
+  Cli.xprintf ("I      = %lu mA\n", G.i / 1000);
+  Cli.xprintf ("T_max  = %lu min\n", G.tMax / 60);
+  Cli.xprintf ("C_max  = %lu mAh\n", G.cMax / 3600);
   Cli.xprintf ("V_max  = %lu mV\n", G.vMax / 1000);
+  Cli.xprintf ("I_max  = %lu mA\n", G.iMax / 1000);  
   Cli.xprintf ("PWM    = %u\n", G.dutyCycle);
   Cli.xprintf ("V1_raw = %u\n", G.v1Raw);
   Cli.xprintf ("V2_raw = %u\n", G.v2Raw);
