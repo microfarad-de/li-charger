@@ -63,6 +63,24 @@ class TraceClass {
      */
     void loopHandler (void);
 
+
+    /*
+     * Start incrementing the timestamp
+     */
+    void start (void);
+
+
+    /*
+     * Stop incrementing the timestamp
+     */
+    void stop (void);
+
+    
+    /*
+     * Reset the timestamp, also stops incrementing
+     */
+    void reset (void);
+
     
     /*
      * Write a new trace message to EEPROM
@@ -77,10 +95,6 @@ class TraceClass {
      */
      void dump (void);
 
-     /*
-      * Reset the timestamp
-      */
-     void reset (void);
      
 
   private:
@@ -90,6 +104,7 @@ class TraceClass {
     uint32_t periodMs   = 1;
     uint32_t stamp      = 0;
     uint32_t stampTs    = 0;
+    bool     active     = false;
 };
 
 

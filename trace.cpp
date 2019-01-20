@@ -48,17 +48,31 @@ void TraceClass::initialize (uint16_t eepromAddr, uint16_t bufSize, uint32_t per
 
 
 void TraceClass::loopHandler (void) {
-  uint32_t ts = millis ();
 
-  if (ts - stampTs > periodMs) {
+  if (!active) return;
+
+  if (millis () - stampTs >= periodMs) {
     stamp++;
     stampTs += periodMs;
   }
 }
 
 
+void TraceClass::start (void) {
+  if (active) return;
+  stampTs = millis ();
+  active = true;
+}
+
+
+void TraceClass::stop (void) {
+  active = false;
+}
+
+
 void TraceClass::reset (void) {
   stamp = 0;
+  stop ();
 }
  
 

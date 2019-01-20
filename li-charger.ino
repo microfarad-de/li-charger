@@ -60,14 +60,14 @@
 #define V_MIN           2500000 // 2.50 V - Minimum allowed battery voltage per cell in µV
 #define V_START          500000 // 0.50 V - Minimum allowed battery voltage per cell in µV for starting a charge
                                 //          Use very low value for overcoming BMS protection and deep-dicharged NiCd cells (makeshift NiCd support)
-#define V_SAFE          2800000 // 2.80 V - Battery voltage threshold per cell in µV for charging at full current
+#define V_SAFE          2800000 // 2.80 V - Chare with reduced current I_safe below this voltage per cell in µV
 #define V_WINDOW           2000 // 0.002 V - Do not regulate voltage when within +/- this window (per cell) in µV
 #define V_DELTA           30000 // 0.03 V - Maximum momentary battery voltage drop per cell in µV
 #define V_TRICKLE_START 4100000 // 4.10 V - Trickle charge threshold voltage in µV
 #define V_TRICKLE_MAX   4150000 // 4.15 V - Trickle charge maximum voltage in µV
 #define I_WINDOW          15000 // 0.015 A - Do not regulate current when within +/- this window in µA
 #define I_DIVIDER           128 // Divider constant used for current calculation
-#define I_SAFE_DIVIDER       20 // Divide I_chrg by this value to calculate I_safe, which is the reduced safety charging current
+#define I_SAFE_DIVIDER       10 // Divide I_chrg by this value to calculate I_safe, which is the reduced safety charging current
 #define TIMEOUT_CHARGE     2000 // Time duration in ms during which V shall be between V_MIN and V_MAX before starting to charge
 #define TIMEOUT_ERROR       150 // Time duration in ms during which i or V shall be out of bounds in order to trigger an error condition
 #define TIMEOUT_FULL      20000 // Time duration in ms during which I_full shall not be exceeded in order to assume that battery is full
@@ -326,7 +326,6 @@ void loop (void) {
   static bool traceSurgeFlag = false;
   static bool safeCharge = true;
   static bool trickleCharge = false;
-  static bool traceEnable = false;
   uint32_t ts = millis ();
 
   // Reset the watchdog timer
@@ -341,8 +340,8 @@ void loop (void) {
   // Update the LED state
   Led.loopHandler ();
 
-  // Update the trace timestamp
-  if (traceEnable) Trace.loopHandler ();
+  // Update the trace timestamp - must be called after 'ts = millis ()'
+  Trace.loopHandler ();
 
   // Read the ADC channels
   adcRead ();
@@ -359,7 +358,6 @@ void loop (void) {
     case STATE_INIT_E:
       Led.blink (-1, 500, 1500);
       trickleCharge = false;
-      traceEnable = false;
       Trace.reset ();
       G.vMax = (uint32_t)V_MAX * Nvm.numCells;
       chargeTs = ts;
@@ -373,6 +371,7 @@ void loop (void) {
       if (ts - chargeTs > TIMEOUT_CHARGE) {
         G.c = 0;
         G.t = 0;
+        tickTs = ts; 
         G.state = STATE_CHARGE_E;
       }
       break;
@@ -386,7 +385,7 @@ void loop (void) {
       tickTs = ts;
       G.iMax = (uint32_t)G.iSafe * 1000;
       safeCharge = true;
-      traceEnable = true;
+      Trace.start ();
       traceCount = 0;
       if (trickleCharge) {
         G.vMax = (uint32_t)V_TRICKLE_MAX * Nvm.numCells; // Reduce vMax to trickle charge level
@@ -401,11 +400,17 @@ void loop (void) {
       calcTmaxCmax (trickleCharge);
       if (G.v <= (uint32_t)V_SAFE * Nvm.numCells) Trace.log ('S', G.iMax / 1000);
       G.state = STATE_CHARGE;
+      
     case STATE_CHARGE:
 
-      // Voltage and current must be slowly increased and quickly decreased
-      if (G.v > G.vMax || G.i > G.iMax) G.tUpdate = (uint32_t)TIMEOUT_UPDATE_DN;
-      else                              G.tUpdate = (uint32_t)TIMEOUT_UPDATE_UP;
+      // Temporarily increase the PWM update rate to mitigate voltage or current surge conditions
+      if ( ( G.v > G.vMax + 10 * (uint32_t)V_WINDOW * Nvm.numCells ) ||
+           ( G.i > G.iMax + 10 * (uint32_t)I_WINDOW ) ) {
+        G.tUpdate = (uint32_t)TIMEOUT_UPDATE_DN;
+      }
+      else {
+        G.tUpdate = (uint32_t)TIMEOUT_UPDATE_UP;
+      }
 
       // CC-CV Regulation:
       // Run the regulation routine at the preset interval
