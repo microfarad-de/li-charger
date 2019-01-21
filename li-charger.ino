@@ -127,14 +127,15 @@ struct {
  * Parameters stored in EEPROM (non-volatile memory)
  */
 struct {
-  uint32_t v1Calibration;       // V1_cal - Calibration value for calculating v1
-  uint32_t v2Calibration;       // V2_cal - Calibration value for calculating v2
+  uint32_t v1Calibration;       // V1_cal - Calibration value for calculating V1
+  uint32_t v2Calibration;       // V2_cal - Calibration value for calculating V2
   uint16_t iFull;               // I_full - End of charge current in mA
   uint16_t iChrg;               // I_chrg - Maximum charging current in mA
   uint16_t rShunt;              // R_shunt - Shunt resistor value in mΩ
   uint16_t cFull;               // C_full - Full charge capacity in mAh
   uint8_t  numCells;            // N_cells - Number of Lithium-Ion cells
-  uint16_t socLut[SOC_LUT_SIZE];// State-of-charge lookup table - contains voltages in 1/10th of a Volt in increasing order
+  uint16_t socLut[SOC_LUT_SIZE];// State-of-charge lookup table - contains voltages in mV 
+                                // index 0: V @ 10%, index 8: V @ 80%
   uint32_t crc;                 // CRC checksum
 } Nvm;
 
@@ -371,7 +372,6 @@ void loop (void) {
       if (ts - chargeTs > TIMEOUT_CHARGE) {
         G.c = 0;
         G.t = 0;
-        tickTs = ts; 
         G.state = STATE_CHARGE_E;
       }
       break;
