@@ -135,7 +135,6 @@ struct {
   uint16_t cFull;               // C_full - Full charge capacity in mAh
   uint8_t  numCells;            // N_cells - Number of Lithium-Ion cells
   uint16_t socLut[SOC_LUT_SIZE];// State-of-charge lookup table - contains voltages in mV 
-                                // index 0: V @ 10%, index 8: V @ 80%
   uint32_t crc;                 // CRC checksum
 } Nvm;
 
@@ -729,11 +728,12 @@ int rShuntSet (int argc, char **argv) {
 
 
 /*
- * CLI command for filling the state-of-charge LUT
- * argv[1]: index [0..SOC_LUT_SIZE-1]
- *          0 = 0%
- *          SOC_LUT_SIZE-1 = maximum %
- * argv[2]: voltage in mV
+ * CLI command for filling the state-of-charge lookup table
+ * argv[1]: idx [0..8]
+ *          V = LUT [idx]
+ *          idx:    0     1     2     3     4     5     6     7     8
+ *          SoC: 0% | 10% | 20% | 30% | 40% | 50% | 60% | 70% | 80% | 90%
+ * argv[2]: voltage in mV per cell
  */
 int socLutSet (int argc, char **argv) {
   uint8_t idx = (uint8_t)atoi (argv[1]);
@@ -772,10 +772,6 @@ void calibrateV2 (void) {
 /*
  * CLI command for calibrating V1 and V2
  * argv[1]:
- *   +  : increase PWM duty cycle by 1 step
- *   ++ : increase PWM duty cycle by 10 steps
- *   -  : decrease PWM duty cycle by 1 step
- *   -- : decrease PWM duty cycle by 10 steps
  *   v1 : calibrate V1
  *   v2 : calibrate V2
  */
