@@ -4,7 +4,7 @@ This repository contains an Arduino implementation for a basic Lithium-Ion batte
 
 Unless stated otherwise within the source file headers, please feel free to use and distribute this code under the *GNU General Public License v3.0*.
 
-*Disclaimer: overcharging, short-circuiting or otherwise abusing Lithium-Ion batteries may result in a fire and/or a violent explosion. I neither take any responsiblity nor can be held liable for any damage caused to human beings and things due to the improper handling of lithium-Ion batteries. Please implement this project at your own risk!*
+*Disclaimer: overcharging, short-circuiting or otherwise abusing Lithium-Ion batteries may result in a fire and/or a violent explosion. I neither take any responsibility nor can be held liable for any damage caused to human beings and things due to the improper handling of lithium-Ion batteries. Please implement this project at your own risk!*
 
 ## Theory of Operation
 
