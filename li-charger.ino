@@ -231,7 +231,7 @@ void calcTmaxCmax (bool trickleCharge) {
   /* Calculate the maximum allowed charge duration
      Assume linear increase with capacity intil 80% of charge (constant current phase), 
      then add a constant duration of 45 min for the remaining top-off charge (constant voltage phase).
-     T_max (s) = 3600 * (C_full / I_chrg) * (80 - SoC) / 100 + 45 * 60s + T_safe
+     T_max (s) = 3600 * (C_full / I_chrg) * (90 - SoC) / 100 + 45 * 60s + T_safe
   */
   if (!trickleCharge) {
     // 36 = 3600 / 100
