@@ -36,4 +36,4 @@ The charging status is displayed by turing on or blinking an LED as follows:
 ## Circuit Diagram
 
 The charger's schematic can be found under the */doc* folder or can be downloaded using the follwoing link:
-https://github.com/microfarad-de/li-charger/raw/master/doc/li-charger-schematic.pdf
+https://github.com/microfarad-de/li-charger/raw/master/doc/li-charger-schematic.png
