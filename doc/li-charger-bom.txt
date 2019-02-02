@@ -1,4 +1,3 @@
-Partlist exported from /Users/Karim/BTSync/Projects/Eagle/projects/li-charger/li-charger.sch at 02.02.19 21:49
 
 Qty Value            Device              Package              Parts      Description                          
 2                    BANANA_CONN         BANANA_CONN          J2, J3     Through-hole Banana Jack             
