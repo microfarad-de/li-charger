@@ -10,7 +10,6 @@ Unless stated otherwise within the source file headers, please feel free to use 
 
 ## Theory of Operation
 
-The charger does not provide any fancy balancing or battery management features. 
 Charging is accomplished with the Constant Current Constant Voltage (CC-CV) scheme. The charger acts as a stabilized source as long as the battery does not reach 4.2 Volts per cell. 
 Once the voltage limit has been reached, the charger would switch to the stabilized voltage mode where it would gradually reduce 
 the current as not to exceed the maximum voltage limit.
