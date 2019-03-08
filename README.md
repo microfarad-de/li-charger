@@ -16,9 +16,6 @@ the current as not to exceed the maximum voltage limit.
 
 In order to avoid damaging the Lithium-Ion cells due to the charger misbehaving, it is highly recommended to additionally protect the cells by means of an off-the-shelf Battery Management System (BMS) board.
 
-The charger ensures that a Lithium-Ion battery is connected checking its voltage. 
-The charging procedure can only be initiated if a voltage between 3.6 and 4.2 Volts per cell are present at the battery terminals.
-
 The charger detects a battery open or short circuit by detecting any sudden voltage drops or surges. 
 
 The charging process is terminated if the current drops below a certain threshold (percentage of the battery capacity) and stays there for a pre-determined amount of time.
