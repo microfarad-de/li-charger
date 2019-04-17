@@ -59,7 +59,7 @@ class TraceClass {
 
     
     /*
-     * Call this function in the Arduion main loop
+     * Call this function in the Arduino main loop
      */
     void loopHandler (void);
 
@@ -84,9 +84,9 @@ class TraceClass {
     
     /*
      * Write a new trace message to EEPROM
-     * ParameterS:
-     *   message: user-readable ascii character identifying the trace message
-     *   value  : integer value
+     * Parameters:
+     *   message : user-readable ascii character identifying the trace message
+     *   value   : integer value
      */
     void log (char message, uint16_t value);
 
