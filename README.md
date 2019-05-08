@@ -20,15 +20,6 @@ The charger detects a battery open or short circuit by detecting any sudden volt
 
 The charging process is terminated if the current drops below a certain threshold (percentage of the battery capacity) and stays there for a pre-determined amount of time.
 
-## LED Indicator
-
-The charging status is displayed by turing on or blinking an LED as follows:
-
-* LED truns on for half a second every 2 seconds: ready, waiting for the battery to be connected
-* LED is solid on: charging
-* LED turns on for 0.1 second every 2 seconds: battery fully charged
-* LED blinks quickly: error
-
 ## Circuit Diagram
 
 The charger's schematic can be found under the */doc* folder or can be downloaded using the follwoing link:
