@@ -62,7 +62,6 @@
                                 //          Use very low value for overcoming BMS protection and deep-dicharged NiCd cells (makeshift NiCd support)
 #define V_SAFE          2800000 // 2.80 V - Chare with reduced current I_safe below this voltage per cell in µV
 #define V_WINDOW           2000 // 0.002 V - Do not regulate voltage when within +/- this window (per cell) in µV
-#define V_DELTA           30000 // 0.03 V - Maximum momentary battery voltage drop per cell in µV
 #define V_TRICKLE_START 4100000 // 4.10 V - Trickle charge threshold voltage in µV
 #define V_TRICKLE_MAX   4150000 // 4.15 V - Trickle charge maximum voltage in µV
 #define I_WINDOW          15000 // 0.015 A - Do not regulate current when within +/- this window in µA
