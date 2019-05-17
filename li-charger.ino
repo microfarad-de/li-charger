@@ -53,6 +53,7 @@
 /*
  * Configuration parameters
  */
+#define SERIAL_BAUD      115200 // Serial communication baud rate
 #define V1_REF          4200000 // 4.20 V - Calibrate V1 against this reference voltage per cell in µV
 #define V2_REF          1000000 // 1.00 V - Calibrate V2 against this reference voltage in µV
 #define V_SURGE         4250000 // 4.25 V - maximum allowed surge voltage threshold per cell in µV
@@ -270,7 +271,7 @@ void setup (void) {
   wdt_disable (); // and disable watchdog
 
   // Initialize the command-line interface
-  Cli.init();
+  Cli.init (SERIAL_BAUD);
   Cli.xputs ("");
   Cli.xputs ("+ + +  L I  C H A R G E R  + + +");
   Cli.xputs ("");
@@ -576,8 +577,8 @@ void adcRead (void) {
   
   if (result) {
     // Get the ADC results
-    G.v1Raw = (uint16_t)ADConv.result[0];
-    G.v2Raw = (uint16_t)ADConv.result[1];
+    G.v1Raw = (uint16_t)ADConv.result[VOLTAGE_APIN];
+    G.v2Raw = (uint16_t)ADConv.result[CURRENT_APIN];
 
     // Calculate voltage and current
     G.v1 = (uint32_t)G.v1Raw * Nvm.v1Calibration;
