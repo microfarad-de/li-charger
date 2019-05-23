@@ -23,11 +23,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>. 
  * 
- * Version: 2.1.0
- * Date:    January 2019
+ * Version: 2.2.0
+ * Date:    May 2019
  */
 #define VERSION_MAJOR 2  // major version
-#define VERSION_MINOR 1  // minor version
+#define VERSION_MINOR 2  // minor version
 #define VERSION_MAINT 0  // maintenance version
 
 #include <avr/sleep.h>
@@ -43,11 +43,11 @@
 /*
  * Pin assignment
  */
-#define NUM_APINS    2         // Number of analog pins in use
+#define NUM_APINS           2  // Number of analog pins in use
 #define VOLTAGE_APIN ADC_PIN0  // Analog pin for voltage measurement
 #define CURRENT_APIN ADC_PIN1  // Analog pin for current measurement
-#define MOSFET_PIN      9      // PWM pin controlling the gate of the power MOSFET
-#define LED_PIN        13      // LED pin
+#define MOSFET_PIN          9  // PWM pin controlling the gate of the power MOSFET
+#define LED_PIN            13   // LED pin
 
 
 /*
