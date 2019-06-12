@@ -23,7 +23,7 @@ The charging process is terminated if the current drops below a certain threshol
 ## Prerequisites
 
 * ATmega328P based Arduino Pro Mini, Arduino Nano or similar model
-* Custom boot loader from: https://github.com/microfarad-de/boot-loader
+* Custom boot loader from: https://github.com/microfarad-de/bootloader
 
 ## Circuit Diagram
 
