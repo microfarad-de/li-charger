@@ -2,7 +2,7 @@
 
 This repository contains an Arduino implementation for a basic Lithium-Ion battery charger. The code has been implemented and tested on an _Arduino Pro Mini_ clone board based on the _ATmega328P_ microcontroller.
 
-Please visit www.microfarad.de/li-charger for a full description of this project.
+Please visit http://www.microfarad.de/li-charger for a full description of this project.
 
 Unless stated otherwise within the source file headers, please feel free to use and distribute this code under the *GNU General Public License v3.0*.
 
@@ -19,6 +19,11 @@ In order to avoid damaging the Lithium-Ion cells due to the charger misbehaving,
 The charger detects a battery open or short circuit by detecting any sudden voltage drops or surges. 
 
 The charging process is terminated if the current drops below a certain threshold (percentage of the battery capacity) and stays there for a pre-determined amount of time.
+
+## Prerequisites
+
+* ATmega328P based Arduino Pro Mini, Arduino Nano or similar model
+* Custom boot loader from: https://github.com/microfarad-de/boot-loader
 
 ## Circuit Diagram
 
