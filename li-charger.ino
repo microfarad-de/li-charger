@@ -34,10 +34,10 @@
 #include <avr/power.h>
 #include <avr/wdt.h>
 #include <Arduino.h>
-#include "cli.h"
-#include "adc.h"
-#include "helper.h"
-#include "trace.h"
+#include "CLI.h"
+#include "ADC.h"
+#include "Helper.h"
+#include "Trace.h"
 
 
 /*
