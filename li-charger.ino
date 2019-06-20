@@ -291,7 +291,7 @@ void setup (void) {
   Cli.showHelp ();
 
   // Initialize the ADC
-  ADConv.initialize (ADC_PRESCALER_128, ADC_INTERNAL, NUM_APINS, ADC_AVG_SAMPLES);
+  Adc.initialize (ADC_PRESCALER_128, ADC_INTERNAL, NUM_APINS, ADC_AVG_SAMPLES);
 
   // Initialize digital pins
   pinMode (MOSFET_PIN, OUTPUT);
@@ -572,13 +572,13 @@ void adcRead (void) {
   bool result;
 
   // Read the ADC channels
-  result = ADConv.readAll ();
+  result = Adc.readAll ();
 
   
   if (result) {
     // Get the ADC results
-    G.v1Raw = (uint16_t)ADConv.result[VOLTAGE_APIN];
-    G.v2Raw = (uint16_t)ADConv.result[CURRENT_APIN];
+    G.v1Raw = (uint16_t)Adc.result[VOLTAGE_APIN];
+    G.v2Raw = (uint16_t)Adc.result[CURRENT_APIN];
 
     // Calculate voltage and current
     G.v1 = (uint32_t)G.v1Raw * Nvm.v1Calibration;
