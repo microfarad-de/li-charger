@@ -24,7 +24,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>. 
  */
 
-#include "trace.h"
+#include "Trace.h"
 #include "helper.h"
 #include <EEPROM.h>
 #include <assert.h>
