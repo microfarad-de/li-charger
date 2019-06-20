@@ -28,7 +28,7 @@
 //#include <stdlib.h>
 //#include <string.h>
 //#include <stdarg.h>
-#include "cli.h"
+#include "Cli.h"
 
 
 #define TEXT_LINE_SIZE  70        // Sets the maximum text line size
