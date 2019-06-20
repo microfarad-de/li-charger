@@ -26,11 +26,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>. 
  */
 
-#include "ADC.h"
+#include "Adc.h"
 #include <assert.h>
 
 
-AdcClass ADConv;
+AdcClass Adc;
 
 
 void AdcClass::initialize (AdcPrescaler_t prescaler, AdcReference_t reference, uint8_t numPins, uint8_t avgSamples) {
