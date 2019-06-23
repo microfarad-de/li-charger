@@ -59,7 +59,7 @@
 #define V_MIN           2500000 // 2.50 V - Minimum allowed battery voltage per cell in µV
 #define V_START          500000 // 0.50 V - Minimum allowed battery voltage per cell in µV for starting a charge
                                 //          Use very low value for overcoming BMS protection and deep-dicharged NiCd cells (makeshift NiCd support)
-#define V_SAFE          2800000 // 2.80 V - Chare with reduced current I_safe below this voltage per cell in µV
+#define V_SAFE          2800000 // 2.80 V - Charge with reduced current I_safe below this voltage per cell in µV
 #define V_WINDOW           2000 // 0.002 V - Do not regulate voltage when within +/- this window (per cell) in µV
 #define V_TRICKLE_START 4100000 // 4.10 V - Trickle charge threshold voltage in µV
 #define V_TRICKLE_MAX   4150000 // 4.15 V - Trickle charge maximum voltage in µV
