@@ -46,13 +46,13 @@ typedef struct
 } CliCmd_s;
 
 
-/* 
+/*
  * Command line interpreter class
  */
 class CliClass
 {
   public:
-    /* 
+    /*
      * Initialize a CLI object
      * Note: this function calls Serial.begin
      */
@@ -60,7 +60,7 @@ class CliClass
       uint32_t serialBaud // Serial Baud rate
       );
 
-    /* 
+    /*
      * Define a new CLI command
      */
     int newCmd (
@@ -81,12 +81,17 @@ class CliClass
      */
     int getCmd (void);
 
-    /* 
+    /*
      * Print a list of available commands and their description
      */
     void showHelp (void);
-    
-    /* 
+
+    /*
+     * Sort commands in alphabetical order
+     */
+    void sortCmds (void);
+
+    /*
      * Emulate stdio functions
      */
     void xprintf (const char *fmt, ... );
@@ -94,13 +99,12 @@ class CliClass
     void xputchar (int c);
     int xgetchar (void);
 
-    
-  private:  
-    
+
+  private:
+
     void textPadding (char c, int size);                              // Insert repeated sequence of characters
     void textPrintBlock (const char *text, int lineSize, int offset); // Print a formatted block of text
-    void sortCmds (int numCmds, CliCmd_s **cmd);                      // Sort commands in alphabetical order
- 
+
     char argBuf[CLI_NUM_ARG][CLI_ARG_LEN]; // Array of charactars for commands and arguments
     char *argv[CLI_NUM_ARG];               // Array of pointers to argument strings
     CliCmd_s cmd[CLI_NUM_CMD];             // Array of commands
@@ -112,7 +116,6 @@ class CliClass
     enum {START, DISCARD_LEADING_SPACES, CAPTURE_STRING, DISCARD_TRAILING_SPACES, EVALUATE} state = START; // State
     int argc = 0;                          // Number of arguments
     int idx = 0;                           // Character index
-    
 };
 
 
