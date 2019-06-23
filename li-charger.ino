@@ -55,7 +55,7 @@
  */
 #define SERIAL_BAUD      115200 // Serial communication baud rate
 #define V_SURGE         4250000 // 4.25 V - maximum allowed surge voltage threshold per cell in µV
-#define V_MAX           4190000 // 4.19 V - Maximum allowed battery voltage per cell in µV
+#define V_MAX           4200000 // 4.20 V - Maximum allowed battery voltage per cell in µV
 #define V_MIN           2500000 // 2.50 V - Minimum allowed battery voltage per cell in µV
 #define V_START          500000 // 0.50 V - Minimum allowed battery voltage per cell in µV for starting a charge
                                 //          Use very low value for overcoming BMS protection and deep-dicharged NiCd cells (makeshift NiCd support)
