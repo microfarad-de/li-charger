@@ -125,8 +125,8 @@ struct {
  * Parameters stored in EEPROM (non-volatile memory)
  */
 struct {
-  uint32_t v1Cal;               // V1_cal - Calibration value for calculating V1
-  uint32_t v2Cal;               // V2_cal - Calibration value for calculating V2
+  uint32_t v1Cal;               // V1_cal - Calibration constant for calculating V1
+  uint32_t v2Cal;               // V2_cal - Calibration constant for calculating V2
   uint16_t iFull;               // I_full - End of charge current in mA
   uint16_t iChrg;               // I_chrg - Maximum charging current in mA
   uint16_t rShunt;              // R_shunt - Shunt resistor value in mΩ
@@ -167,7 +167,7 @@ void nvmValidate (void) {
   if (Nvm.v1Cal < 4000 || Nvm.v1Cal > 40000) Nvm.v1Cal = 40000;
   if (Nvm.v2Cal < 800  || Nvm.v2Cal > 1200 ) Nvm.v2Cal = 1200;
   if (Nvm.cFull < 10 || Nvm.cFull > 10000 ) Nvm.cFull = 10;
-  if (Nvm.rShunt < 100 || Nvm.rShunt > 1000) Nvm.rShunt = 1000;
+  if (Nvm.rShunt < 100 || Nvm.rShunt > 1000) Nvm.rShunt = 100;
 
   // Calculate current calibration value
   G.iCalibration = ((uint32_t)I_DIVIDER * 1000) / (uint32_t)Nvm.rShunt;
@@ -271,7 +271,7 @@ void setup (void) {
   // Initialize the Timer 1 PWM frequency for pins 9 and 10
   // see https://etechnophiles.com/change-frequency-pwm-pins-arduino-uno/
   // see ATmega328P datasheet Section 20.14.2, Table 20-7
-  TCCR1B = (TCCR1B & B11111000) | B00000001; // for PWM frequency of 31250 Hz
+  TCCR1B = (TCCR1B & B11111000) | B00000001; // For PWM frequency of 31250Hz (using 16MHz crystal)
 
   // Initialize the command-line interface
   Cli.init (SERIAL_BAUD);
@@ -310,7 +310,6 @@ void setup (void) {
 
   // Enable the watchdog
   wdt_enable (WDTO_1S);
-
 }
 
 
@@ -404,7 +403,6 @@ void loop (void) {
       G.state = STATE_CHARGE;
       
     case STATE_CHARGE:
-
       // Temporarily increase the PWM update rate to mitigate voltage or current surge conditions
       if ( ( G.v > G.vMax + 10 * (uint32_t)V_WINDOW * Nvm.numCells ) ||
            ( G.i > G.iMax + 10 * (uint32_t)I_WINDOW ) ) {
@@ -413,12 +411,11 @@ void loop (void) {
       else {
         G.tUpdate = (uint32_t)DELAY_UPDATE_UP;
       }
-
+      
       // CC-CV Regulation:
       // Run the regulation routine at the preset interval
       if (ts - updateTs > G.tUpdate) {
         updateTs = ts;
-
         // Regulate voltage and current with the CC-CV algorithm
         if ( ( G.v > G.vMax + (uint32_t)V_WINDOW * Nvm.numCells ) ||
              ( G.i > G.iMax + (uint32_t)I_WINDOW ) ) {
@@ -428,18 +425,17 @@ void loop (void) {
                   ( G.i < G.iMax - (uint32_t)I_WINDOW ) ) {
           if (G.dutyCycle < 255) G.dutyCycle++;
         }
-
         // Update the PWM duty cycle
         analogWrite (MOSFET_PIN, G.dutyCycle);
       }
-
+      
       // Set the charging current
       if (G.v > (uint32_t)V_SAFE * Nvm.numCells && safeCharge) {
         safeCharge = false;
         G.iMax = (uint32_t)Nvm.iChrg * 1000;
         Trace.log ('I', G.iMax / 1000);
       }
-
+      
       // Error Detection:
       // Signal an error if V stays out of bounds or open circuit condition occurs during DELAY_ERROR
       if ( (G.v > (uint32_t)V_MIN * Nvm.numCells || safeCharge) && 
@@ -452,8 +448,7 @@ void loop (void) {
         if (G.i == 0 && G.dutyCycle > PWM_OC_DETECT_THR)  Cli.xprintf ("Open circuit "), Trace.log ('E', 3);
         G.state = STATE_ERROR_E;
       }
-
-
+      
       // End of Charge Detection:
       // Report battery full if I_full has not been exceeded during DELAY_FULL (ignore during safety charging)
       if ( G.i > (uint32_t)Nvm.iFull * 1000 || safeCharge ) fullTs = ts;
@@ -464,7 +459,7 @@ void loop (void) {
         Trace.log ('F', 1);
         G.state = STATE_FULL_E; 
       }
-
+      
       // Calculate charged capacity by integrating i over time
       if (ts - tickTs >= 1000 /* && !trickleCharge */) {
         tickTs += 1000;
@@ -477,7 +472,7 @@ void loop (void) {
           traceCount = 0;
         }
       }
-
+      
       // End of Charge Detection:
       // Maximum charge capacity is reached 
       if (G.c > G.cMax) {
@@ -519,7 +514,6 @@ void loop (void) {
         cmdStatus (0, NULL);
         G.state = STATE_CHARGE_E;
       }
-
       // Go to STATE_INIT if V stayed 0 during DELAY_RESET
       if (G.v > 0) resetTs = ts;
       if (ts - resetTs > DELAY_FULL_RST) G.state = STATE_INIT_E;
@@ -566,7 +560,6 @@ void loop (void) {
 
 
 
-
 /*
  * Read the ADC channels
  */
@@ -575,7 +568,6 @@ void adcRead (void) {
 
   // Read the ADC channels
   result = Adc.readAll ();
-
   
   if (result) {
     // Get the ADC results
@@ -589,7 +581,6 @@ void adcRead (void) {
     G.i  = ( (uint32_t)G.v2 * G.iCalibration ) / I_DIVIDER ;
   }
 }
-
 
 
 /*
@@ -634,7 +625,6 @@ int cmdStatus (int argc, char **argv) {
   Cli.xputs ("");
   return 0;
 }
-
 
 
 /*
@@ -776,7 +766,6 @@ void calibrateV2 (uint32_t vRef) {
 }
 
 
-
 /*
  * CLI command for calibrating V1 and V2
  * argv[1]:
@@ -803,7 +792,6 @@ int cmdCal (int argc, char **argv) {
   }
   return 0;
 }
-
 
 
 /*
