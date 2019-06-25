@@ -214,7 +214,7 @@ bool nvmWrite (void) {
     return true;
   }
   else {
-    Cli.xputs ("Invalid param.");
+    Cli.xputs ("Out of range");
     return false;
   }
 }
