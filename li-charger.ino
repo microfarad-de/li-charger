@@ -23,11 +23,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>. 
  * 
- * Version: 3.0.0
+ * Version: 3.1.0
  * Date:    June 2019
  */
 #define VERSION_MAJOR 3  // major version
-#define VERSION_MINOR 0  // minor version
+#define VERSION_MINOR 1  // minor version
 #define VERSION_MAINT 0  // maintenance version
 
 #include <avr/sleep.h>
@@ -72,7 +72,7 @@
 #define DELAY_TRICKLE      5000 // Time duration in ms during which V shall be smaller than V_TRICKLE_MAX before starting a trickle charge
 #define DELAY_ERR_RST      2000 // Time duration in ms during which V shall be 0 before going back from STATE_ERROR to STATE_INIT
 #define DELAY_FULL_RST     2000 // Time duration in ms during which V shall be 0 before going back from STATE_FULL to STATE_INIT
-#define DELAY_UPDATE_UP      50 // Time interval in ms for increasing the power output by one increment
+#define DELAY_UPDATE_UP     100 // Time interval in ms for increasing the power output by one increment
 #define DELAY_UPDATE_DN       1 // Time interval in ms for decreasing the power output by one increment
 #define PWM_OC_DETECT_THR   150 // PWM value threshold - detect open circuit if I = 0 while PWM exceeds this value
 #define ADC_AVG_SAMPLES      16 // Number of ADC samples to be averaged
@@ -142,11 +142,11 @@ struct {
  */
 const struct {
   char *N_cells = (char *)"N_cells = %u\n";
-  char *C_full  = (char *)"C_full  = %u mAh\n";
-  char *I_chrg  = (char *)"I_chrg  = %u mA\n";
-  char *I_safe  = (char *)"I_safe  = %u mA\n";
-  char *I_full  = (char *)"I_full  = %u mA\n";
-  char *R_shunt = (char *)"R_shunt = %u mΩ\n";
+  char *C_full  = (char *)"C_full  = %umAh\n";
+  char *I_chrg  = (char *)"I_chrg  = %umA\n";
+  char *I_safe  = (char *)"I_safe  = %umA\n";
+  char *I_full  = (char *)"I_full  = %umA\n";
+  char *R_shunt = (char *)"R_shunt = %umΩ\n";
   char *V1_cal  = (char *)"V1_cal  = %lu\n";
   char *V2_cal  = (char *)"V2_cal  = %lu\n";
   char *I_cal   = (char *)"I_cal   = %lu\n";
@@ -159,21 +159,27 @@ const struct {
  * Validate the settings
  * Called after reading or before writing EEPROM
  * Always fall-back to the safest possible values
+ * Return value:
+ *   true  : validation OK
+ *   false : validation error
  */
-void nvmValidate (void) {
-  if (Nvm.numCells < 0 || Nvm.numCells > 6) Nvm.numCells = 1;
-  if (Nvm.iChrg < 100 || Nvm.iChrg > 2000) Nvm.iChrg = 100;
-  if (Nvm.iFull < 20 || Nvm.iFull > Nvm.iChrg - 20) Nvm.iFull = Nvm.iChrg - 20;
-  if (Nvm.v1Cal < 4000 || Nvm.v1Cal > 40000) Nvm.v1Cal = 40000;
-  if (Nvm.v2Cal < 800  || Nvm.v2Cal > 1200 ) Nvm.v2Cal = 1200;
-  if (Nvm.cFull < 10 || Nvm.cFull > 10000 ) Nvm.cFull = 10;
-  if (Nvm.rShunt < 100 || Nvm.rShunt > 1000) Nvm.rShunt = 100;
+bool nvmValidate (void) {
+  bool rv = true;
+  if (Nvm.numCells < 0 || Nvm.numCells > 6)         Nvm.numCells = 1          , rv = false;
+  if (Nvm.iChrg < 100 || Nvm.iChrg > 2000)          Nvm.iChrg = 100           , rv = false;
+  if (Nvm.iFull < 20 || Nvm.iFull > Nvm.iChrg - 20) Nvm.iFull = Nvm.iChrg - 20, rv = false;
+  if (Nvm.v1Cal < 4000 || Nvm.v1Cal > 40000)        Nvm.v1Cal = 40000         , rv = false;
+  if (Nvm.v2Cal < 800  || Nvm.v2Cal > 1200 )        Nvm.v2Cal = 1200          , rv = false;
+  if (Nvm.cFull < 10 || Nvm.cFull > 10000 )         Nvm.cFull = 10            , rv = false;
+  if (Nvm.rShunt < 100 || Nvm.rShunt > 1000)        Nvm.rShunt = 100          , rv = false;
 
   // Calculate current calibration value
   G.iCalibration = ((uint32_t)I_DIVIDER * 1000) / (uint32_t)Nvm.rShunt;
 
   // Calculate the safe charging current
   G.iSafe = Nvm.iChrg / (uint16_t)I_SAFE_DIVIDER;
+
+  return rv;
 }
 
 
@@ -197,12 +203,20 @@ void nvmRead (void) {
 
 /*
  * Write and validate EEPROM data
+ * Return value:
+ *   true  : validation OK
+ *   false : validation error
  */
-void nvmWrite (void) {
-  nvmValidate (); 
-  Nvm.crc = crcCalc ((uint8_t*)&Nvm, sizeof (Nvm) - sizeof (Nvm.crc) );
-  //Cli.xprintf (Str.CRC, Nvm.crc);
-  eepromWrite (0x0, (uint8_t*)&Nvm, sizeof (Nvm));
+bool nvmWrite (void) {
+  if (nvmValidate ()) {
+    Nvm.crc = crcCalc ((uint8_t*)&Nvm, sizeof (Nvm) - sizeof (Nvm.crc) );
+    eepromWrite (0x0, (uint8_t*)&Nvm, sizeof (Nvm));
+    return true;
+  }
+  else {
+    Cli.xputs ("Invalid param.");
+    return false;
+  }
 }
 
 
@@ -610,16 +624,16 @@ int cmdStatus (int argc, char **argv) {
   uint32_t min = G.t / 60 - (hour * 60);
   uint32_t sec = G.t - (hour * 3600) - (min * 60);
   Cli.xprintf ("T      = %02u:%02u:%02u\n", (uint8_t)hour, (uint8_t)min, (uint8_t)sec); 
-  Cli.xprintf ("C      = %lu mAh\n", G.c / 3600);
-  Cli.xprintf ("V      = %lu mV\n", G.v / 1000);
-  Cli.xprintf ("I      = %lu mA\n", G.i / 1000);
-  Cli.xprintf ("T_max  = %lu min\n", G.tMax / 60);
-  Cli.xprintf ("C_max  = %lu mAh\n", G.cMax / 3600);
-  Cli.xprintf ("V_max  = %lu mV\n", G.vMax / 1000);
-  Cli.xprintf ("I_max  = %lu mA\n", G.iMax / 1000);  
+  Cli.xprintf ("C      = %lumAh\n", G.c / 3600);
+  Cli.xprintf ("V      = %lumV\n", G.v / 1000);
+  Cli.xprintf ("I      = %lumA\n", G.i / 1000);
+  Cli.xprintf ("T_max  = %lumin\n", G.tMax / 60);
+  Cli.xprintf ("C_max  = %lumAh\n", G.cMax / 3600);
+  Cli.xprintf ("V_max  = %lumV\n", G.vMax / 1000);
+  Cli.xprintf ("I_max  = %lumA\n", G.iMax / 1000);  
   Cli.xprintf ("PWM    = %u\n", G.dutyCycle);
-  Cli.xprintf ("V1     = %lu mV\n", G.v1 / 1000);
-  Cli.xprintf ("V2     = %lu mV\n", G.v2 / 1000);
+  Cli.xprintf ("V1     = %lumV\n", G.v1 / 1000);
+  Cli.xprintf ("V2     = %lumV\n", G.v2 / 1000);
   Cli.xprintf ("V1_raw = %u\n", G.v1Raw);
   Cli.xprintf ("V2_raw = %u\n", G.v2Raw);
   Cli.xputs ("");
@@ -658,9 +672,10 @@ int cmdEEPROM (int argc, char **argv) {
  */
 int cmdNcells (int argc, char **argv) {
   if (argc != 2) return 1;
+  uint8_t tmp = Nvm.numCells;
   Nvm.numCells = atoi (argv[1]);
-  nvmWrite ();
-  Cli.xprintf (Str.N_cells, Nvm.numCells);
+  if (nvmWrite ()) Cli.xprintf (Str.N_cells, Nvm.numCells);
+  else             Nvm.numCells = tmp;
   Cli.xputs ("");
   G.state = STATE_INIT_E;
   return 0;
@@ -673,9 +688,16 @@ int cmdNcells (int argc, char **argv) {
  */
 int cmdIchrg (int argc, char **argv) {
   if (argc != 2) return 1;
+  uint16_t tmp1 = Nvm.iChrg;
+  uint16_t tmp2 = Nvm.iFull;
   Nvm.iChrg = atoi (argv[1]);
-  nvmWrite ();
-  Cli.xprintf(Str.I_chrg, Nvm.iChrg);
+  if (nvmWrite ()) {
+    Cli.xprintf(Str.I_chrg, Nvm.iChrg);
+  }
+  else {
+    Nvm.iChrg = tmp1;
+    Nvm.iFull = tmp2;
+  }
   Cli.xputs("");
   return 0;
 }
@@ -687,9 +709,10 @@ int cmdIchrg (int argc, char **argv) {
  */
 int cmdIfull (int argc, char **argv) {
   if (argc != 2) return 1;
+  uint16_t tmp = Nvm.iFull;
   Nvm.iFull = atoi (argv[1]);
-  nvmWrite ();
-  Cli.xprintf(Str.I_full, Nvm.iFull);
+  if (nvmWrite ()) Cli.xprintf(Str.I_full, Nvm.iFull);
+  else             Nvm.iFull = tmp;
   Cli.xputs("");
   return 0;
 }
@@ -701,9 +724,10 @@ int cmdIfull (int argc, char **argv) {
  */
 int cmdCfull (int argc, char **argv) {
   if (argc != 2) return 1;
+  uint16_t tmp = Nvm.cFull;
   Nvm.cFull = atoi (argv[1]);
-  nvmWrite ();
-  Cli.xprintf(Str.C_full, Nvm.cFull);
+  if (nvmWrite ()) Cli.xprintf(Str.C_full, Nvm.cFull);
+  else             Nvm.cFull = tmp;
   Cli.xputs("");
   return 0;
 }
@@ -715,10 +739,15 @@ int cmdCfull (int argc, char **argv) {
  */
 int cmdRshunt (int argc, char **argv) {
   if (argc != 2) return 1;
+  uint16_t tmp = Nvm.rShunt;
   Nvm.rShunt = atoi (argv[1]);
-  nvmWrite ();
-  Cli.xprintf(Str.R_shunt, Nvm.rShunt);
-  Cli.xprintf(Str.I_cal, G.iCalibration);
+  if (nvmWrite ()) {
+    Cli.xprintf(Str.R_shunt, Nvm.rShunt);
+    Cli.xprintf(Str.I_cal, G.iCalibration);
+  }
+  else {
+    Nvm.rShunt = tmp;
+  }
   Cli.xputs("");
   return 0;
 }
@@ -748,9 +777,10 @@ int cmdLut (int argc, char **argv) {
  * Calibrate V1
  */
 void calibrateV1 (uint32_t vRef) {
+  uint32_t tmp = Nvm.v1Cal;
   Nvm.v1Cal = (uint32_t)vRef / (uint32_t)G.v1Raw;
-  nvmWrite ();
-  Cli.xprintf (Str.V1_cal, Nvm.v1Cal);
+  if (nvmWrite ()) Cli.xprintf (Str.V1_cal, Nvm.v1Cal);
+  else             Nvm.v1Cal = tmp;
   Cli.xputs ("");
 }
 
@@ -759,9 +789,10 @@ void calibrateV1 (uint32_t vRef) {
  * Calibrate V2
  */
 void calibrateV2 (uint32_t vRef) {
+  uint32_t tmp = Nvm.v2Cal;
   Nvm.v2Cal = (uint32_t)vRef / (uint32_t)G.v2Raw;
-  nvmWrite ();
-  Cli.xprintf (Str.V2_cal, Nvm.v2Cal);
+  if (nvmWrite ()) Cli.xprintf (Str.V2_cal, Nvm.v2Cal);
+  else             Nvm.v2Cal = tmp;
   Cli.xputs ("");
 }
 
