@@ -72,8 +72,8 @@
 #define DELAY_TRICKLE      5000 // Time duration in ms during which V shall be smaller than V_TRICKLE_MAX before starting a trickle charge
 #define DELAY_ERR_RST      2000 // Time duration in ms during which V shall be 0 before going back from STATE_ERROR to STATE_INIT
 #define DELAY_FULL_RST     2000 // Time duration in ms during which V shall be 0 before going back from STATE_FULL to STATE_INIT
-#define DELAY_UPDATE_UP     100 // Time interval in ms for increasing the power output by one increment
-#define DELAY_UPDATE_DN       1 // Time interval in ms for decreasing the power output by one increment
+#define DELAY_UPDATE_UP      10 // Number of ADC conversions for increasing the power output by one increment
+#define DELAY_UPDATE_DN       1 // Number of ADC conversions  for decreasing the power output by one increment
 #define PWM_OC_DETECT_THR   150 // PWM value threshold - detect open circuit if I = 0 while PWM exceeds this value
 #define ADC_AVG_SAMPLES      16 // Number of ADC samples to be averaged
 #define SOC_LUT_SIZE          9 // Size of the state-of-charge lookup table
@@ -112,6 +112,7 @@ struct {
   uint32_t cMax;         // C_max - Maximum allowed charge capacity in mAs 
   uint32_t t = 0;        // Charge duration in s
   uint32_t tUpdate;      // Regulation loop update interval in ms
+  uint32_t adcTick = 0;  // ADC conversion counter, increments when new ADC results are available
   uint16_t v1Raw;        // Raw ADC value of V1
   uint16_t v2Raw;        // Raw ADC value of V2
   uint16_t iSafe;        // I_safe - Charging current in mA when the battery voltage is below V_SAFE
@@ -398,6 +399,7 @@ void loop (void) {
       errorTs = ts;
       fullTs = ts;
       tickTs = ts;
+      updateTs = G.adcTick;
       G.iMax = (uint32_t)G.iSafe * 1000;
       safeCharge = true;
       Trace.start ();
@@ -428,8 +430,8 @@ void loop (void) {
       
       // CC-CV Regulation:
       // Run the regulation routine at the preset interval
-      if (ts - updateTs > G.tUpdate) {
-        updateTs = ts;
+      if (G.adcTick - updateTs > G.tUpdate) {
+        updateTs = G.adcTick;
         // Regulate voltage and current with the CC-CV algorithm
         if ( ( G.v > G.vMax + (uint32_t)V_WINDOW * Nvm.numCells ) ||
              ( G.i > G.iMax + (uint32_t)I_WINDOW ) ) {
@@ -593,6 +595,7 @@ void adcRead (void) {
     G.v2 = (uint32_t)G.v2Raw * Nvm.v2Cal;
     G.v  = G.v1 - G.v2;
     G.i  = ( (uint32_t)G.v2 * G.iCalibration ) / I_DIVIDER ;
+    G.adcTick++;
   }
 }
 
