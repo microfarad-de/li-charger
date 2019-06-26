@@ -72,7 +72,7 @@
 #define DELAY_TRICKLE      5000 // Time duration in ms during which V shall be smaller than V_TRICKLE_MAX before starting a trickle charge
 #define DELAY_ERR_RST      2000 // Time duration in ms during which V shall be 0 before going back from STATE_ERROR to STATE_INIT
 #define DELAY_FULL_RST     2000 // Time duration in ms during which V shall be 0 before going back from STATE_FULL to STATE_INIT
-#define DELAY_UPDATE_UP      10 // Number of ADC conversions for increasing the power output by one increment
+#define DELAY_UPDATE_UP      20 // Number of ADC conversions for increasing the power output by one increment
 #define DELAY_UPDATE_DN       1 // Number of ADC conversions  for decreasing the power output by one increment
 #define PWM_OC_DETECT_THR   150 // PWM value threshold - detect open circuit if I = 0 while PWM exceeds this value
 #define ADC_AVG_SAMPLES      16 // Number of ADC samples to be averaged
@@ -117,6 +117,7 @@ struct {
   uint16_t v2Raw;        // Raw ADC value of V2
   uint16_t iSafe;        // I_safe - Charging current in mA when the battery voltage is below V_SAFE
   uint8_t dutyCycle;     // PWM duty cycle
+  char *stateStr;        // Pointer to a string describing the current state
   bool crcOk = false;    // EEPROM CRC check was successful
 } G;
 
@@ -153,6 +154,9 @@ const struct {
   char *I_cal   = (char *)"I_cal   = %lu\n";
   char *CRC     = (char *)"CRC = %lx\n\n";
   char *reached = (char *)" reached";
+  char *Calibration = (char *)"Calibration";
+  char *start   = (char *)"start";
+  char *stop    = (char *)"stop";
 } Str;
 
 
@@ -380,7 +384,9 @@ void loop (void) {
       chargeTs = ts;
       G.dutyCycle = 0;
       analogWrite (MOSFET_PIN, 0);
-      Cli.xputs ("Waiting for battery\n");
+      G.stateStr = (char *)"Waiting for battery";
+      Cli.xputs (G.stateStr);
+      Cli.xputs ("");
       G.state = STATE_INIT;
     case STATE_INIT:
       // Start charging if V stays within bounds during DELAY_CHARGE
@@ -406,13 +412,14 @@ void loop (void) {
       traceCount = 0;
       if (trickleCharge) {
         G.vMax = (uint32_t)V_TRICKLE_MAX * Nvm.numCells; // Reduce vMax to trickle charge level
-        Cli.xprintf ("Trickle c");
+        G.stateStr = (char *)"Trickle charging";
       }
       else  {
         G.vMax = (uint32_t)V_MAX * Nvm.numCells; // Set vMax to full charge level
-        Cli.xprintf ("C");
+        G.stateStr = (char *)"Charging";
       }
-      Cli.xputs ("harging\n"); // No typo, just a trick to save memory
+      Cli.xputs (G.stateStr);
+      Cli.xputs ("");
       Trace.log ('*', G.vMax / 1000);
       calcTmaxCmax (trickleCharge);
       if (G.v <= (uint32_t)V_SAFE * Nvm.numCells) Trace.log ('S', G.iMax / 1000);
@@ -512,12 +519,13 @@ void loop (void) {
     // Battery Full State
     case STATE_FULL_E:
       Led.blink (-1, 100, 1900);
-      trickleCharge = true;
       trickleTs = ts;
       resetTs = ts;
       G.dutyCycle = 0;
       analogWrite (MOSFET_PIN, 0);
-      Cli.xputs ("Battery full\n");
+      G.stateStr = (char *)"Battery full";
+      Cli.xputs (G.stateStr);
+      Cli.xputs ("");
       Trace.log ('t', G.t / 60);
       Trace.log ('c', G.c / 3600);
       Trace.log ('v', G.v / 1000);
@@ -528,6 +536,7 @@ void loop (void) {
       if (G.v > (uint32_t)V_TRICKLE_START * Nvm.numCells) trickleTs = ts;
       if (ts - trickleTs > DELAY_TRICKLE) {
         cmdStatus (0, NULL);
+        trickleCharge = true;
         G.state = STATE_CHARGE_E;
       }
       // Go to STATE_INIT if V stayed 0 during DELAY_RESET
@@ -542,7 +551,9 @@ void loop (void) {
       resetTs = ts;
       G.dutyCycle = 0;
       analogWrite (MOSFET_PIN, 0);
-      Cli.xputs ("ERROR\n");
+      G.stateStr = (char *)"ERROR";
+      Cli.xputs (G.stateStr);
+      Cli.xputs ("");
       Trace.log ('t', G.t / 60);
       Trace.log ('c', G.c / 3600);
       Trace.log ('v', G.v / 1000);
@@ -561,6 +572,7 @@ void loop (void) {
       Led.blink (-1, 100, 100);
       G.dutyCycle = 0;
       analogWrite (MOSFET_PIN, 0);
+      G.stateStr = Str.Calibration;
       G.state = STATE_CALIBRATE;   
     case STATE_CALIBRATE:
       // Do nothing and wait for a CLI command
@@ -626,6 +638,7 @@ int cmdStatus (int argc, char **argv) {
   uint32_t hour = G.t / 3600;
   uint32_t min = G.t / 60 - (hour * 60);
   uint32_t sec = G.t - (hour * 3600) - (min * 60);
+  Cli.xprintf ("state  = %s\n", G.stateStr);
   Cli.xprintf ("T      = %02u:%02u:%02u\n", (uint8_t)hour, (uint8_t)min, (uint8_t)sec); 
   Cli.xprintf ("C      = %lumAh\n", G.c / 3600);
   Cli.xprintf ("V      = %lumV\n", G.v / 1000);
@@ -813,15 +826,15 @@ int cmdCal (int argc, char **argv) {
     uint32_t vRef = (uint32_t)atoi(argv[2]) * 1000;
     if      (strcmp(argv[1], "v1") == 0 && argc == 3) calibrateV1 (vRef);
     else if (strcmp(argv[1], "v2") == 0 && argc == 3) calibrateV2 (vRef);
-    else if (strcmp(argv[1], "stop") == 0) {
+    else if (strcmp(argv[1], Str.stop) == 0) {
       G.state = STATE_INIT_E;
-      Cli.xputs ("Calibration stop");
+      Cli.xprintf ("%s %s\n", Str.Calibration, Str.stop);
       Cli.xputs ("");
     }
   }
-  else if (strcmp(argv[1], "start") == 0) {
+  else if (strcmp(argv[1], Str.start) == 0) {
     G.state = STATE_CALIBRATE_E;
-    Cli.xputs ("Calibration start");
+    Cli.xprintf ("%s %s\n", Str.Calibration, Str.start);
     Cli.xputs ("");
   }
   return 0;
