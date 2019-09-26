@@ -23,19 +23,19 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>. 
  * 
- * Version: 3.1.0
- * Date:    June 2019
+ * Version: 3.1.1
+ * Date:    September 2019
  */
 #define VERSION_MAJOR 3  // major version
 #define VERSION_MINOR 1  // minor version
-#define VERSION_MAINT 0  // maintenance version
+#define VERSION_MAINT 1  // maintenance version
 
 #include <avr/sleep.h>
 #include <avr/power.h>
 #include <avr/wdt.h>
 #include <Arduino.h>
-#include "CLI.h"
-#include "ADC.h"
+#include "Cli.h"
+#include "Adc.h"
 #include "Helper.h"
 #include "Trace.h"
 
