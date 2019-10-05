@@ -23,7 +23,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>. 
  * 
- * Version: 3.1.1
+ * Version: 3.1.2
  * Date:    September 2019
  */
 #define VERSION_MAJOR 3  // major version

@@ -25,7 +25,7 @@
  */
 
 #include "Trace.h"
-#include "helper.h"
+#include "Helper.h"
 #include <EEPROM.h>
 #include <assert.h>
 
