@@ -28,7 +28,7 @@
  */
 #define VERSION_MAJOR 3  // major version
 #define VERSION_MINOR 1  // minor version
-#define VERSION_MAINT 1  // maintenance version
+#define VERSION_MAINT 2  // maintenance version
 
 #include <avr/sleep.h>
 #include <avr/power.h>
