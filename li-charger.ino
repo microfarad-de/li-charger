@@ -34,11 +34,10 @@
 #include <avr/power.h>
 #include <avr/wdt.h>
 #include <Arduino.h>
-#include "Cli.h"
-#include "Adc.h"
+#include "src/Cli/Cli.h"
+#include "src/Adc/Adc.h"
+#include "src/Trace/Trace.h"
 #include "Helper.h"
-#include "Trace.h"
-
 
 /*
  * Pin assignment
