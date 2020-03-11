@@ -29,3 +29,4 @@ The charging process is terminated if the current drops below a certain threshol
 
 The charger's schematic can be found under the */doc* folder or can be downloaded using the follwoing link:
 https://github.com/microfarad-de/li-charger/raw/master/doc/li-charger-schematic.png
+
