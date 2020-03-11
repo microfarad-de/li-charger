@@ -1,0 +1,12 @@
+[submodule "src/Cli"]
+	path = src/Cli
+	url = ssh://git@github.com/microfarad-de/Cli.git
+	branch = li-charger
+[submodule "src/Adc"]
+	path = src/Adc
+	url = ssh://git@github.com/microfarad-de/Adc.git
+	branch = li-charger
+[submodule "src/Trace"]
+	path = src/Trace
+	url = ssh://git@github.com/microfarad-de/Trace.git
+	branch = li-charger
