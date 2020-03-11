@@ -3,3 +3,7 @@
 	url = https://github.com/microfarad-de/Cli
 	branch = li-charger
 
+[submodule "Adc"]
+	path = Adc
+	url = ssh://git@github.com/microfarad-de/Adc.git
+	branch = li-charger
