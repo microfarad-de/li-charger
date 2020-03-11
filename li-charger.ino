@@ -34,7 +34,7 @@
 #include <avr/power.h>
 #include <avr/wdt.h>
 #include <Arduino.h>
-#include "Cli/Cli.h"
+#include "Cli.h"
 #include "Adc.h"
 #include "Helper.h"
 #include "Trace.h"
