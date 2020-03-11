@@ -1,3 +1,5 @@
 [submodule "Cli"]
 	path = Cli
 	url = https://github.com/microfarad-de/Cli
+	branch = li-charger
+

@@ -34,7 +34,7 @@
 #include <avr/power.h>
 #include <avr/wdt.h>
 #include <Arduino.h>
-#include "Cli.h"
+#include "Cli/Cli.h"
 #include "Adc.h"
 #include "Helper.h"
 #include "Trace.h"
@@ -344,7 +344,6 @@ void loop (void) {
   static uint32_t trickleTs = 0;
   static uint32_t resetTs = 0;
   static uint16_t traceCount = 0;
-  static bool traceSurgeFlag = false;
   static bool safeCharge = true;
   static bool trickleCharge = false;
   uint32_t ts = millis ();
