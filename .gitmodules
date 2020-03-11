@@ -7,3 +7,7 @@
 	path = Adc
 	url = ssh://git@github.com/microfarad-de/Adc.git
 	branch = li-charger
+[submodule "Trace"]
+	path = Trace
+	url = ssh://git@github.com/microfarad-de/Trace.git
+	branch = li-charger
