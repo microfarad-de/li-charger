@@ -14,10 +14,6 @@
 	path = src/Nvm
 	url = ssh://git@github.com/microfarad-de/Nvm.git
 	branch = li-charger
-[submodule "src/Button"]
-	path = src/Button
-	url = ssh://git@github.com/microfarad-de/Button.git
-	branch = li-charger
 [submodule "src/Led"]
 	path = src/Led
 	url = ssh://git@github.com/microfarad-de/Led.git

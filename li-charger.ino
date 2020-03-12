@@ -39,7 +39,6 @@
 #include "src/Trace/Trace.h"
 #include "src/Nvm/Nvm.h"
 #include "src/Led/Led.h"
-#include "src/Button/Button.h"
 #include "src/MathMf/MathMf.h"
 
 /*
