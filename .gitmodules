@@ -10,10 +10,6 @@
 	path = src/Trace
 	url = ssh://git@github.com/microfarad-de/Trace.git
 	branch = li-charger
-[submodule "src/Math"]
-	path = src/Math
-	url = ssh://git@github.com/microfarad-de/Math.git
-	branch = li-charger
 [submodule "src/Nvm"]
 	path = src/Nvm
 	url = ssh://git@github.com/microfarad-de/Nvm.git
@@ -25,4 +21,8 @@
 [submodule "src/Led"]
 	path = src/Led
 	url = ssh://git@github.com/microfarad-de/Led.git
+	branch = li-charger
+[submodule "src/MathMf"]
+	path = src/MathMf
+	url = ssh://git@github.com/microfarad-de/MathMf
 	branch = li-charger

@@ -40,7 +40,7 @@
 #include "src/Nvm/Nvm.h"
 #include "src/Led/Led.h"
 #include "src/Button/Button.h"
-#include "src/Math/Math.h"
+#include "src/MathMf/MathMf.h"
 
 /*
  * Pin assignment
