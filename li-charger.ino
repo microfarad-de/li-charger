@@ -23,12 +23,12 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>. 
  * 
- * Version: 3.1.2
- * Date:    September 2019
+ * Version: 3.1.3
+ * Date:    March 2020
  */
 #define VERSION_MAJOR 3  // major version
 #define VERSION_MINOR 1  // minor version
-#define VERSION_MAINT 2  // maintenance version
+#define VERSION_MAINT 3  // maintenance version
 
 #include <avr/sleep.h>
 #include <avr/power.h>
