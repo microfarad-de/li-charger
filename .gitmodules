@@ -22,3 +22,6 @@
 	path = src/MathMf
 	url = ssh://git@github.com/microfarad-de/MathMf
 	branch = li-charger
+[submodule "arduino-mk"]
+	path = arduino-mk
+	url = ssh://git@github.com/sudar/Arduino-Makefile

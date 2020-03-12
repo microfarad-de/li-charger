@@ -161,6 +161,31 @@ const struct {
 } Str;
 
 
+
+/*
+ * Function prototypes
+ */
+bool nvmValidate (void);
+void nvmRead (void);
+bool nvmWrite (void);
+void calcTmaxCmax (bool);
+void adcRead (void);
+int cmdStatus (int, char **);
+int cmdEEPROM (int, char **);
+int cmdNcells (int, char **);
+int cmdIchrg (int, char **);
+int cmdCfull (int, char **);
+int cmdIfull (int, char **);
+int cmdRshunt (int, char **);
+int cmdLut (int, char **);
+void calibrateV1 (uint32_t);
+void calibrateV2 (uint32_t);
+int cmdCal (int, char **);
+int cmdTrace (int, char **);
+
+
+
+
 /*
  * Validate the settings
  * Called after reading or before writing EEPROM
