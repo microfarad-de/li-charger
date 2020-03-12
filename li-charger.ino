@@ -37,7 +37,10 @@
 #include "src/Cli/Cli.h"
 #include "src/Adc/Adc.h"
 #include "src/Trace/Trace.h"
-#include "Helper.h"
+#include "src/Nvm/Nvm.h"
+#include "src/Led/Led.h"
+#include "src/Button/Button.h"
+#include "src/Math/Math.h"
 
 /*
  * Pin assignment
