@@ -1,5 +1,4 @@
 #
-# Uninterrruptible Power Supply (UPS) for a Raspberry Pi
 # Project Makefile
 #
 # Notes:
@@ -12,10 +11,6 @@
 #      export ARDUINO_DIR=/opt/arduino
 #      export ARDMK_DIR=/opt/arduino-mk
 #      export MONITOR_PORT=/dev/ttyUSB0
-#
-#
-# This source file is part of the Raspberry Pi UPS Arduino firmware
-# found under http://www.github.com/microfarad-de/pi-ups
 #
 # Please visit:
 #   http://www.microfarad.de
