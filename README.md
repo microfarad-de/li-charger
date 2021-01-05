@@ -2,7 +2,7 @@
 
 This repository contains an Arduino implementation for a basic Lithium-Ion battery charger. The code has been implemented and tested on an _Arduino Pro Mini_ clone board based on the _ATmega328P_ microcontroller.
 
-This project uses Git submodules. In order to get its full source code,please clone this Git repository to your local workspace, then execute the follwoing command from within the repository's root directory: `git submodule update --init`.
+This project uses Git submodules. In order to get its full source code, please clone this Git repository to your local workspace, then execute the follwoing command from within the repository's root directory: `git submodule update --init`.
 
 Please visit http://www.microfarad.de/li-charger for a full description of this project.
 
