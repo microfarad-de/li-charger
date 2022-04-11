@@ -11,7 +11,7 @@ if [[ -z $version ]]; then
   exit 1
 fi
 
-rm -r "$file_name-"*"-full"*
+rm -rf "$file_name-"*"-full"*
 
 if [[ $version != "clean" ]]; then
   zip -r "$file_name-$version-full.zip" . -x '*.git*' '*.vscode*' '*private*' '*build*' '*.DS_Store'
