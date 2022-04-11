@@ -2,3 +2,5 @@
 *.tmp
 private
 build-*
+*-full*
+
