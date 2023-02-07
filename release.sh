@@ -19,11 +19,14 @@ fi
 sed -i -e "s/.* * Version:.*/ * Version: $version/" "$file_name.ino"
 sed -i -e "s/.* * Date:.*/ * Date:    $(date '+%B %d, %Y')/" "$file_name.ino"
 rm -rf "$file_name.ino-e"
-
 rm -rf "$file_name-"*"-full"*
+rm -rf "$file_name"
+rm -rf "$file_name "*
+
+make clean
 
 if [[ "$option" != "clean" ]]; then
-  zip -r "$file_name-$version-full.zip" . -x '*.git*' '*.vscode*' '*private*' '*build-*' '*.DS_Store*'
+  cd .. && zip -r "$file_name/$file_name-$version-full.zip" "$file_name" -x '*.git*' '*.vscode*' '*private*' '*build-*' '*.DS_Store*'
 fi
 
 exit 0
