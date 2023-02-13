@@ -1,15 +1,15 @@
-/* 
+/*
  * Lithium Battery Charger
- * 
+ *
  * This source file is part of the Lithium-Ion Battery Charger Arduino firmware
  * found under http://www.github.com/microfarad-de/li-charger
- * 
+ *
  * Please visit:
  *   http://www.microfarad.de
  *   http://www.github.com/microfarad-de
- * 
+ *
  * Copyright (C) 2019 Karim Hraibi (khraibi at gmail.com)
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,14 +21,14 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>. 
- * 
- * Version: 3.1.3
- * Date:    March 2020
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Version: 3.1.4
+ * Date:    February 13, 2023
  */
 #define VERSION_MAJOR 3  // major version
 #define VERSION_MINOR 1  // minor version
-#define VERSION_MAINT 3  // maintenance version
+#define VERSION_MAINT 4  // maintenance version
 
 #include <avr/sleep.h>
 #include <avr/power.h>
@@ -84,7 +84,7 @@
 
 
 
-/* 
+/*
  * Objects
  */
 LedClass Led;
@@ -93,7 +93,7 @@ TraceClass Trace;
 /*
  * State machine states
  */
-enum State_t { STATE_INIT_E, STATE_INIT, STATE_CHARGE_E, STATE_CHARGE, STATE_FULL_E, STATE_FULL, 
+enum State_t { STATE_INIT_E, STATE_INIT, STATE_CHARGE_E, STATE_CHARGE, STATE_FULL_E, STATE_FULL,
                 STATE_ERROR_E, STATE_ERROR, STATE_CALIBRATE_E, STATE_CALIBRATE };
 
 /*
@@ -110,7 +110,7 @@ struct {
   uint32_t tMax;         // T_max - Maximum allowed charge time duration in s
   uint32_t iCalibration; // Calibration value for calculating i
   uint32_t c = 0;        // Total charged capacity in mAs
-  uint32_t cMax;         // C_max - Maximum allowed charge capacity in mAs 
+  uint32_t cMax;         // C_max - Maximum allowed charge capacity in mAs
   uint32_t t = 0;        // Charge duration in s
   uint32_t tUpdate;      // Regulation loop update interval in ms
   uint32_t adcTick = 0;  // ADC conversion counter, increments when new ADC results are available
@@ -135,7 +135,7 @@ struct {
   uint16_t rShunt;              // R_shunt - Shunt resistor value in mΩ
   uint16_t cFull;               // C_full - Full charge capacity in mAh
   uint8_t  numCells;            // N_cells - Number of Lithium-Ion cells
-  uint16_t socLut[SOC_LUT_SIZE];// State-of-charge lookup table - contains voltages in mV 
+  uint16_t socLut[SOC_LUT_SIZE];// State-of-charge lookup table - contains voltages in mV
   uint32_t crc;                 // CRC checksum
 } Nvm;
 
@@ -219,8 +219,8 @@ bool nvmValidate (void) {
  */
 void nvmRead (void) {
   uint32_t crc;
-  
-  eepromRead (0x0, (uint8_t*)&Nvm, sizeof (Nvm)); 
+
+  eepromRead (0x0, (uint8_t*)&Nvm, sizeof (Nvm));
   nvmValidate ();
 
   // Calculate and check CRC checksum
@@ -252,13 +252,13 @@ bool nvmWrite (void) {
 
 
 /*
- * Claculate the values of 
+ * Claculate the values of
  * the maximum charge duration T_max and
  * the maximum charge capacity C_max
  */
 void calcTmaxCmax (bool trickleCharge) {
   uint8_t i, soc;
-  
+
   // Detect charge state using the lookup table
   for (i = 0; i < SOC_LUT_SIZE; i++) {
     if (G.v < (uint32_t)Nvm.socLut[i] * 1000 * (uint32_t)Nvm.numCells) break;
@@ -266,13 +266,13 @@ void calcTmaxCmax (bool trickleCharge) {
 
   // Calculate the state of charge
   soc = (i * 100) / (SOC_LUT_SIZE + 1);
-  
+
   //Cli.xprintf ("V   = %lu mV\n", G.v / 1000);
   Cli.xprintf ("SoC = %u %%\n", soc);
   Cli.xputs ("");
-  
+
   /* Calculate the maximum allowed charge duration
-     Assume linear increase with capacity intil 80% of charge (constant current phase), 
+     Assume linear increase with capacity intil 80% of charge (constant current phase),
      then add a constant duration of 45 min for the remaining top-off charge (constant voltage phase).
      T_max (s) = 3600 * (C_full / I_chrg) * (90 - SoC) / 100 + 45 * 60s + T_safe
   */
@@ -299,7 +299,7 @@ void calcTmaxCmax (bool trickleCharge) {
   Trace.log ('%', soc);
   Trace.log ('v', G.v / 1000);
   Trace.log ('T', G.tMax / 60);
-  Trace.log ('C', G.cMax / 3600);  
+  Trace.log ('C', G.cMax / 3600);
 }
 
 
@@ -335,7 +335,7 @@ void setup (void) {
   Cli.newCmd ("lut", "Set LUT (arg: <idx> <mV>)", cmdLut);
   Cli.newCmd ("rshunt", "Set R_shunt (arg: <mΩ>)", cmdRshunt);
   Cli.newCmd ("cal", "Calibrate (arg: <start|stop|v1|v2> [mV])", cmdCal);
-  
+
   Cli.showHelp ();
 
   // Initialize the ADC
@@ -379,7 +379,7 @@ void loop (void) {
 
   // Enter the power save mode - reduces accuracy of c calculation
   //powerSave ();
-  
+
   // Command-line interpreter
   Cli.getCmd ();
 
@@ -398,7 +398,7 @@ void loop (void) {
 
   // Main state machine
   switch (G.state) {
-  
+
     /********************************************************************/
     // Initialization State
     case STATE_INIT_E:
@@ -449,7 +449,7 @@ void loop (void) {
       calcTmaxCmax (trickleCharge);
       if (G.v <= (uint32_t)V_SAFE * Nvm.numCells) Trace.log ('S', G.iMax / 1000);
       G.state = STATE_CHARGE;
-      
+
     case STATE_CHARGE:
       // Temporarily increase the PWM update rate to mitigate voltage or current surge conditions
       if ( ( G.v > G.vMax + 10 * (uint32_t)V_WINDOW * Nvm.numCells ) ||
@@ -459,7 +459,7 @@ void loop (void) {
       else {
         G.tUpdate = (uint32_t)DELAY_UPDATE_UP;
       }
-      
+
       // CC-CV Regulation:
       // Run the regulation routine at the preset interval
       if (G.adcTick - updateTs > G.tUpdate) {
@@ -476,18 +476,18 @@ void loop (void) {
         // Update the PWM duty cycle
         analogWrite (MOSFET_PIN, G.dutyCycle);
       }
-      
+
       // Set the charging current
       if (G.v > (uint32_t)V_SAFE * Nvm.numCells && safeCharge) {
         safeCharge = false;
         G.iMax = (uint32_t)Nvm.iChrg * 1000;
         Trace.log ('I', G.iMax / 1000);
       }
-      
+
       // Error Detection:
       // Signal an error if V stays out of bounds or open circuit condition occurs during DELAY_ERROR
-      if ( (G.v > (uint32_t)V_MIN * Nvm.numCells || safeCharge) && 
-           G.v < (uint32_t)V_SURGE * Nvm.numCells  && 
+      if ( (G.v > (uint32_t)V_MIN * Nvm.numCells || safeCharge) &&
+           G.v < (uint32_t)V_SURGE * Nvm.numCells  &&
            !( G.i == 0 && G.dutyCycle > PWM_OC_DETECT_THR ) ) errorTs = ts;
       if (ts - errorTs > DELAY_ERROR) {
         cmdStatus (0, NULL);
@@ -496,18 +496,18 @@ void loop (void) {
         if (G.i == 0 && G.dutyCycle > PWM_OC_DETECT_THR)  Cli.xprintf ("Open circuit "), Trace.log ('E', 3);
         G.state = STATE_ERROR_E;
       }
-      
+
       // End of Charge Detection:
       // Report battery full if I_full has not been exceeded during DELAY_FULL (ignore during safety charging)
       if ( G.i > (uint32_t)Nvm.iFull * 1000 || safeCharge ) fullTs = ts;
       if (ts - fullTs > DELAY_FULL) {
         cmdStatus (0, NULL);
-        Cli.xprintf("I_full"); 
+        Cli.xprintf("I_full");
         Cli.xputs(Str.reached);
         Trace.log ('F', 1);
-        G.state = STATE_FULL_E; 
+        G.state = STATE_FULL_E;
       }
-      
+
       // Calculate charged capacity by integrating i over time
       if (ts - tickTs >= 1000 /* && !trickleCharge */) {
         tickTs += 1000;
@@ -520,23 +520,23 @@ void loop (void) {
           traceCount = 0;
         }
       }
-      
+
       // End of Charge Detection:
-      // Maximum charge capacity is reached 
+      // Maximum charge capacity is reached
       if (G.c > G.cMax) {
-        cmdStatus (0, NULL); 
+        cmdStatus (0, NULL);
         Cli.xprintf ("C_max"); Cli.xputs(Str.reached);
         Trace.log ('F', 2);
         G.state = STATE_FULL_E;
       }
-      
+
       // End of Charge Detection:
       // Maximum charge duration reached
       if (G.t > G.tMax) {
         cmdStatus (0, NULL);
         Cli.xprintf ("T_max"); Cli.xputs(Str.reached);
         Trace.log ('F', 3);
-        G.state = STATE_FULL_E;  
+        G.state = STATE_FULL_E;
       }
       break;
 
@@ -555,7 +555,7 @@ void loop (void) {
       Trace.log ('c', G.c / 3600);
       Trace.log ('v', G.v / 1000);
       Trace.log ('i', G.i / 1000);
-      G.state = STATE_FULL;     
+      G.state = STATE_FULL;
     case STATE_FULL:
       // Start a trickle charging cycle if V_TRICKLE_START has not been exceeded during DELAY_TRICKLE
       if (G.v > (uint32_t)V_TRICKLE_START * Nvm.numCells) trickleTs = ts;
@@ -568,7 +568,7 @@ void loop (void) {
       if (G.v > 0) resetTs = ts;
       if (ts - resetTs > DELAY_FULL_RST) G.state = STATE_INIT_E;
       break;
-        
+
     /********************************************************************/
     // Error State
     case STATE_ERROR_E:
@@ -583,14 +583,14 @@ void loop (void) {
       Trace.log ('c', G.c / 3600);
       Trace.log ('v', G.v / 1000);
       Trace.log ('i', G.i / 1000);
-      G.state = STATE_ERROR;   
+      G.state = STATE_ERROR;
     case STATE_ERROR:
       // Go to STATE_INIT if V stayed 0 during DELAY_RESET
       if (G.v > 0) resetTs = ts;
       if (ts - resetTs > DELAY_ERR_RST && G.crcOk) G.state = STATE_INIT_E;
       break;
 
-      
+
     /********************************************************************/
     // Calibration State
     case STATE_CALIBRATE_E:
@@ -598,11 +598,11 @@ void loop (void) {
       G.dutyCycle = 0;
       analogWrite (MOSFET_PIN, 0);
       G.stateStr = Str.Calibration;
-      G.state = STATE_CALIBRATE;   
+      G.state = STATE_CALIBRATE;
     case STATE_CALIBRATE:
       // Do nothing and wait for a CLI command
       break;
-      
+
     /********************************************************************/
     default:
       break;
@@ -621,7 +621,7 @@ void adcRead (void) {
 
   // Read the ADC channels
   result = Adc.readAll ();
-  
+
   if (result) {
     // Get the ADC results
     G.v1Raw = (uint16_t)Adc.result[VOLTAGE_APIN];
@@ -643,10 +643,10 @@ void adcRead (void) {
 void powerSave (void) {
 
   // configure lowest sleep mode that keeps clk_IO for Timer 1 used for PWM generation
-  set_sleep_mode (SLEEP_MODE_IDLE); 
+  set_sleep_mode (SLEEP_MODE_IDLE);
 
   // enter sleep, wakeup will be triggered by the next millis() interrupt
-  sleep_enable (); 
+  sleep_enable ();
   sleep_cpu ();
   sleep_disable ();
 }
@@ -664,14 +664,14 @@ int cmdStatus (int argc, char **argv) {
   uint32_t min = G.t / 60 - (hour * 60);
   uint32_t sec = G.t - (hour * 3600) - (min * 60);
   Cli.xprintf ("state  = %s\n", G.stateStr);
-  Cli.xprintf ("T      = %02u:%02u:%02u\n", (uint8_t)hour, (uint8_t)min, (uint8_t)sec); 
+  Cli.xprintf ("T      = %02u:%02u:%02u\n", (uint8_t)hour, (uint8_t)min, (uint8_t)sec);
   Cli.xprintf ("C      = %lumAh\n", G.c / 3600);
   Cli.xprintf ("V      = %lumV\n", G.v / 1000);
   Cli.xprintf ("I      = %lumA\n", G.i / 1000);
   Cli.xprintf ("T_max  = %lumin\n", G.tMax / 60);
   Cli.xprintf ("C_max  = %lumAh\n", G.cMax / 3600);
   Cli.xprintf ("V_max  = %lumV\n", G.vMax / 1000);
-  Cli.xprintf ("I_max  = %lumA\n", G.iMax / 1000);  
+  Cli.xprintf ("I_max  = %lumA\n", G.iMax / 1000);
   Cli.xprintf ("PWM    = %u\n", G.dutyCycle);
   Cli.xprintf ("V1     = %lumV\n", G.v1 / 1000);
   Cli.xprintf ("V2     = %lumV\n", G.v2 / 1000);
@@ -684,8 +684,8 @@ int cmdStatus (int argc, char **argv) {
 
 /*
  * CLI command for showing calibration parameters
- * These values do not change during runtime. 
- * They are either directly read from EEPROM or 
+ * These values do not change during runtime.
+ * They are either directly read from EEPROM or
  * derived from other EEPROM values.
  */
 int cmdEEPROM (int argc, char **argv) {

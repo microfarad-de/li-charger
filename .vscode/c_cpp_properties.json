@@ -1,0 +1,27 @@
+{
+    "configurations": [
+        {
+            "name": "Mac",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/Applications/Arduino.app/Contents/Java/hardware/arduino/avr/cores/arduino",
+                "/Applications/Arduino.app/Contents/Java/hardware/arduino/avr/variants/eightanaloginputs",
+                "/Applications/Arduino.app/Contents/Java/hardware/arduino/avr/libraries/EEPROM/src"/*,
+                "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/avr/include/**",
+                "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/avr/include/avr/**",
+                "/Applications/Arduino.app/Contents/Java/hardware/arduino/avr/cores/arduino/**",
+                "/Applications/Arduino.app/Contents/Java/hardware/arduino/avr/variants/standard/**",
+                "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/avr/include/avr/**" */
+            ],
+            "defines": [
+                "__AVR_ATmega328P__",
+                "F_CPU=16000000L"
+            ],
+            "compilerPath": "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/bin/avr-g++",
+            "cStandard": "c11",
+            "cppStandard": "c++14",
+            "intelliSenseMode": "gcc-x64"
+        }
+    ],
+    "version": 4
+}

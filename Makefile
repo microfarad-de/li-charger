@@ -29,7 +29,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>. 
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
 
@@ -38,7 +38,7 @@
 BOARD_TAG = pro
 BOARD_SUB = 16MHzatmega328
 MONITOR_BAUDRATE = 19200
-#MONITOR_PORT = /dev/ttyUSB0 
+#MONITOR_PORT = /dev/ttyUSB0
 
 ARDMK_DIR = arduino-mk
 #ARDUINO_DIR = /Applications/Arduino.app/Contents/Java
@@ -48,3 +48,12 @@ USER_LIB_PATH = src
 ARDUINO_LIBS = Adc Cli Led MathMf Nvm Trace EEPROM
 
 include ${ARDMK_DIR}/Arduino.mk
+
+release: clean
+	./release.sh
+.PHONY: release
+
+clean::
+	./release.sh clean
+.PHONY: clean
+

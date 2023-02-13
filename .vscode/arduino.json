@@ -1,0 +1,7 @@
+{
+    "port": "/dev/cu.usbserial-00000000",
+    "configuration": "cpu=16MHzatmega328",
+    "board": "arduino:avr:pro",
+    "programmer": "arduino:arduinoasisp",
+    "sketch": "nixie-clock.ino"
+}
