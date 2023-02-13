@@ -6,7 +6,6 @@ option="$1"
 dir_name=$(basename $(pwd))
 
 if [[ "$option" == "clean" ]]; then
-  rm -rf "$dir_name.ino-e"
   rm -rf "$dir_name-"*"-full"*
   rm -rf "$dir_name"
   rm -rf "$dir_name "*
@@ -21,6 +20,7 @@ else
   fi
   sed -i -e "s/.* * Version:.*/ * Version: $version/" "$dir_name.ino"
   sed -i -e "s/.* * Date:.*/ * Date:    $(date '+%B %d, %Y')/" "$dir_name.ino"
+  rm -rf "$dir_name.ino-e"
   cd .. && zip -r "$dir_name/$dir_name-$version-full.zip" "$dir_name" -x '*.git*' '*.vscode*' '*private*' '*build-*' '*.DS_Store*'
 fi
 
