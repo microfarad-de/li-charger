@@ -23,12 +23,12 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Version: 3.1.4
- * Date:    February 13, 2023
+ * Version: 3.2.0
+ * Date:    April 24, 2023
  */
 #define VERSION_MAJOR 3  // major version
-#define VERSION_MINOR 1  // minor version
-#define VERSION_MAINT 4  // maintenance version
+#define VERSION_MINOR 2  // minor version
+#define VERSION_MAINT 0  // maintenance version
 
 #include <avr/sleep.h>
 #include <avr/power.h>
@@ -58,8 +58,7 @@
 #define V_SURGE         4250000 // 4.25 V - maximum allowed surge voltage threshold per cell in µV
 #define V_MAX           4200000 // 4.20 V - Maximum allowed battery voltage per cell in µV
 #define V_MIN           2500000 // 2.50 V - Minimum allowed battery voltage per cell in µV
-#define V_START          500000 // 0.50 V - Minimum allowed battery voltage per cell in µV for starting a charge
-                                //          Use very low value for overcoming BMS protection and deep-dicharged NiCd cells (makeshift NiCd support)
+#define V_START           V_MIN // 2.50 V - Minimum allowed battery voltage per cell in µV for starting a charge
 #define V_SAFE          2800000 // 2.80 V - Charge with reduced current I_safe below this voltage per cell in µV
 #define V_WINDOW           2000 // 0.002 V - Do not regulate voltage when within +/- this window (per cell) in µV
 #define V_TRICKLE_START 4100000 // 4.10 V - Trickle charge threshold voltage in µV
@@ -486,8 +485,8 @@ void loop (void) {
 
       // Error Detection:
       // Signal an error if V stays out of bounds or open circuit condition occurs during DELAY_ERROR
-      if ( (G.v > (uint32_t)V_MIN * Nvm.numCells || safeCharge) &&
-           G.v < (uint32_t)V_SURGE * Nvm.numCells  &&
+      if ( G.v > (uint32_t)V_MIN   * Nvm.numCells &&
+           G.v < (uint32_t)V_SURGE * Nvm.numCells &&
            !( G.i == 0 && G.dutyCycle > PWM_OC_DETECT_THR ) ) errorTs = ts;
       if (ts - errorTs > DELAY_ERROR) {
         cmdStatus (0, NULL);
