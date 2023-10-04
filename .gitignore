@@ -4,3 +4,4 @@ private
 build-*
 *-full*
 li-charger*
+.cache
