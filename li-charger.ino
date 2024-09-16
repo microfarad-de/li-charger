@@ -313,9 +313,11 @@ void setup (void) {
   wdt_disable (); // and disable watchdog
 
   // Initialize the Timer 1 PWM frequency for pins 9 and 10
-  // see https://etechnophiles.com/change-frequency-pwm-pins-arduino-uno/
-  // see ATmega328P datasheet Section 20.14.2, Table 20-7
-  TCCR1B = (TCCR1B & B11111000) | B00000001; // For PWM frequency of 31250Hz (using 16MHz crystal)
+  // See https://docs.arduino.cc/tutorials/generic/secrets-of-arduino-pwm/
+  // See https://nerdytechy.com/how-to-change-the-pwm-frequency-of-arduino/
+  // See https://etechnophiles.com/change-frequency-pwm-pins-arduino-uno/
+  // See ATmega328P datasheet Section 20.14.2, Table 20-7
+  TCCR1B = (TCCR1B & B11111000) | B00000001; // For PWM frequency of 31372.55Hz (using 16MHz crystal)
 
   // Initialize the command-line interface
   Cli.init (SERIAL_BAUD);
