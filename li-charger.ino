@@ -24,7 +24,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Version: 3.2.1
- * Date:    July 10, 2026
+ * Date:    July 22, 2026
  */
 #define VERSION_MAJOR 3  // major version
 #define VERSION_MINOR 2  // minor version
@@ -48,7 +48,7 @@
 #define VOLTAGE_APIN ADC_PIN0  // Analog pin for voltage measurement
 #define CURRENT_APIN ADC_PIN1  // Analog pin for current measurement
 #define MOSFET_PIN          9  // PWM pin controlling the gate of the power MOSFET
-#define LED_PIN            13   // LED pin
+#define LED_PIN   LED_BUILTIN  // LED pin
 
 
 /*
@@ -319,6 +319,21 @@ void setup (void) {
   // See ATmega328P datasheet Section 20.14.2, Table 20-7
   TCCR1B = (TCCR1B & B11111000) | B00000001; // For PWM frequency of 31372.55Hz (using 16MHz crystal)
 
+  // Configure all unused pins as INPUT_PULLUP to avoid
+  // excessive power draw due to toggling floating pins
+  // except crystal pins
+  DDRB  = 0x00;
+  DDRC  = 0x00;
+  DDRD  = 0x00;
+  PORTB = 0x3F;   // D8–D13 pull-ups enabled
+  PORTC = 0x3F;   // A0–A5 pull-ups enabled
+  PORTD = 0xFF;   // D0–D7 pull-ups enabled
+
+  // Initialize pins
+  pinMode (A0, INPUT);
+  pinMode (A1, INPUT);
+  pinMode (MOSFET_PIN, OUTPUT);
+
   // Initialize the command-line interface
   Cli.init (SERIAL_BAUD);
   Cli.xputs ("");
@@ -341,9 +356,6 @@ void setup (void) {
 
   // Initialize the ADC
   Adc.initialize (ADC_PRESCALER_128, ADC_INTERNAL, NUM_APINS, ADC_AVG_SAMPLES);
-
-  // Initialize digital pins
-  pinMode (MOSFET_PIN, OUTPUT);
 
   // Initialize LED
   Led.initialize (LED_PIN);
@@ -642,12 +654,13 @@ void adcRead (void) {
  * Power-save routine, sends the CPU into sleep mode
  */
 void powerSave (void) {
-
   // configure lowest sleep mode that keeps clk_IO for Timer 1 used for PWM generation
   set_sleep_mode (SLEEP_MODE_IDLE);
 
   // enter sleep, wakeup will be triggered by the next millis() interrupt
+  cli ();
   sleep_enable ();
+  sei ();
   sleep_cpu ();
   sleep_disable ();
 }

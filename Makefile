@@ -37,7 +37,7 @@
 
 BOARD_TAG = pro
 BOARD_SUB = 16MHzatmega328
-MONITOR_BAUDRATE = 19200
+MONITOR_BAUDRATE = 115200
 #MONITOR_PORT = /dev/ttyUSB0
 
 ARDMK_DIR = arduino-mk
@@ -48,6 +48,10 @@ USER_LIB_PATH = src
 ARDUINO_LIBS = Adc Cli Led MathMf Nvm Trace EEPROM
 
 include ${ARDMK_DIR}/Arduino.mk
+
+serial:
+	./tools/serial-console ${DEVICE_PATH} ${MONITOR_BAUDRATE}
+.PHONY: serial
 
 release: clean
 	./release.sh
